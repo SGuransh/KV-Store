@@ -3,7 +3,12 @@
 #define MEMTABLE_DS_HPP
 
 class Memtable_ds {
+protected:
+    int maxElements; // Maximum number of elements allowed
+
 public:
+    Memtable_ds(int maxElements) : maxElements(maxElements) {}
+
     virtual void insert(int key, const std::string& value) = 0;
     virtual bool search(int key, std::string& value) = 0;
     virtual void remove(int key) = 0;

@@ -1,6 +1,6 @@
 #include "Memtable_ds.hpp"
 #include <iostream>
-#include <algorithm>
+#include <unordered_map>
 using namespace std;
 
 class AVL : public Memtable_ds {
@@ -14,6 +14,7 @@ private:
     };
 
     Node* root;
+    int currentSize; // Track the current number of elements
 
     int height(Node* N) {
         if (N == nullptr)
@@ -172,10 +173,15 @@ private:
     }
 
 public:
-    AVL() : root(nullptr) {}
+    AVL(int maxElements) : Memtable_ds(maxElements), root(nullptr), currentSize(0) {}
 
     void insert(int key, const string& value) override {
+        if (currentSize >= maxElements) {
+            cout << "Memtable is full. Cannot insert new elements." << endl;
+            return;
+        }
         root = insert(root, key, value);
+        currentSize++;
     }
 
     bool search(int key, string& value) override {
@@ -184,5 +190,6 @@ public:
 
     void remove(int key) override {
         root = remove(root, key);
+        currentSize--;
     }
 };
