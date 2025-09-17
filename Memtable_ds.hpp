@@ -1,8 +1,9 @@
+#include <vector>
+#include <utility>
 #include <string>
+
 #ifndef MEMTABLE_DS_HPP
 #define MEMTABLE_DS_HPP
-
-#include <vector>
 
 class Memtable_ds {
 protected:
@@ -31,6 +32,13 @@ public:
     virtual Node* timed_insert(int key, int value, int& time) = 0;
     virtual bool timed_search(int key, int& value, int& time) = 0;
     virtual Node* timed_remove(int key, int& time) = 0;
+    
+    // New virtual methods for persistent key-value store functionality
+    virtual std::vector<std::pair<int, int>> range_scan(int key1, int key2) = 0;
+    virtual bool open_database(const std::string& dbName) = 0;
+    virtual bool close_database() = 0;
+    virtual bool flush_to_sst() = 0;
+    
     virtual ~Memtable_ds() {}
 };
 
