@@ -7,16 +7,18 @@
 #include <sys/stat.h>
 #include <dirent.h>
 #include <cstdio>
+#include <unordered_set>
 using namespace std;
 
-class AVL : public Memtable_ds {
+class AVL : public Memtable_ds
+{
 private:
-
     int currentSize = 0;
     std::string databaseName;
     std::string databaseDirectory;
 
-    int height(Node* N) {
+    int height(Node *N)
+    {
         /*
             Simple Heigh calculating helper function
         */
@@ -25,11 +27,12 @@ private:
         return N->height;
     }
 
-    Node* newNode(const int key, const int value) {
+    Node *newNode(const int key, const int value)
+    {
         /*
             Helper function to make new Nodes
         */
-        Node* node = new Node();
+        Node *node = new Node();
         node->key = key;
         node->value = value;
         node->left = nullptr;
@@ -38,7 +41,8 @@ private:
         return node;
     }
 
-    int BFactor(Node* N) {
+    int BFactor(Node *N)
+    {
         /*
             Returns the Balance Factor of node N, which is height of right subtree - height of left subtree.
         */
@@ -47,39 +51,42 @@ private:
         return height(N->right) - height(N->left);
     }
 
-    Node* rightRotatation(Node* n) {
+    Node *rightRotatation(Node *n)
+    {
         /*
             This function performs a right rotation on the given node y and returns the new root of the subtree.
         */
-       Node* x = n->left;
-       Node* moving = x->right;
+        Node *x = n->left;
+        Node *moving = x->right;
 
-       x->right = n;
-       n->left = moving;
+        x->right = n;
+        n->left = moving;
 
-       n->height = 1 + max(height(n->left), height(n->right));
-       x->height = 1 + max(height(x->left), height(x->right));
+        n->height = 1 + max(height(n->left), height(n->right));
+        x->height = 1 + max(height(x->left), height(x->right));
 
-       return x;
+        return x;
     }
 
-    Node* leftRotatation(Node* n) {
+    Node *leftRotatation(Node *n)
+    {
         /*
             This function performs a left rotation on the given node x and returns the new root of the subtree.
         */
-       Node* x = n->right;
-       Node* moving = x->left;
+        Node *x = n->right;
+        Node *moving = x->left;
 
-       x->left = n;
-       n->right = moving;
+        x->left = n;
+        n->right = moving;
 
-       n->height = 1 + max(height(n->left), height(n->right));
-       x->height = 1 + max(height(x->left), height(x->right));
+        n->height = 1 + max(height(n->left), height(n->right));
+        x->height = 1 + max(height(x->left), height(x->right));
 
-       return x;
+        return x;
     }
 
-    Node* insert(Node* node, int key, int value){
+    Node *insert(Node *node, int key, int value)
+    {
         /*
             This is the insertion function. The Algo is:
             1. Perform the normal BST insertion.
@@ -88,18 +95,22 @@ private:
 
             Returns the head of the modified tree.
         */
-        if (node == nullptr){
+        if (node == nullptr)
+        {
             currentSize++;
             return newNode(key, value);
         }
 
-        if (key > node->key){
+        if (key > node->key)
+        {
             node->right = insert(node->right, key, value);
         }
-        else if (key < node->key){
+        else if (key < node->key)
+        {
             node->left = insert(node->left, key, value);
         }
-        else{
+        else
+        {
             return nullptr;
         }
 
@@ -108,25 +119,30 @@ private:
 
         int balance = BFactor(node);
 
-        // Balance factor being 2 or -2 means that we need rotations    
-        if (balance == 2 && BFactor(node->right) >= 0){
+        // Balance factor being 2 or -2 means that we need rotations
+        if (balance == 2 && BFactor(node->right) >= 0)
+        {
             return leftRotatation(node);
         }
-        else if (balance == 2 && BFactor(node->right) < 0){
+        else if (balance == 2 && BFactor(node->right) < 0)
+        {
             node->right = rightRotatation(node->right);
             return leftRotatation(node);
         }
-        else if (balance == -2 && BFactor(node->left) <= 0){
+        else if (balance == -2 && BFactor(node->left) <= 0)
+        {
             return rightRotatation(node);
         }
-        else if (balance == -2 && BFactor(node->left) > 0){
+        else if (balance == -2 && BFactor(node->left) > 0)
+        {
             node->left = leftRotatation(node->left);
             return rightRotatation(node);
         }
         return node;
     }
 
-    bool search(Node* node, int key, int& value) {
+    bool search(Node *node, int key, int &value)
+    {
         /*
             This is the search function. The Algo is:
             1. Start from the root and compare the key with the key of the current node.
@@ -137,58 +153,70 @@ private:
 
             Returns true if found, false otherwise.
         */
-        if (node == nullptr) {
+        if (node == nullptr)
+        {
             return false;
         }
-        if (key == node->key) {
+        if (key == node->key)
+        {
             value = node->value;
             return true;
         }
-        if (key < node->key) {
+        if (key < node->key)
+        {
             return search(node->left, key, value);
         }
         return search(node->right, key, value);
     }
 
-    void inorder_helper(Node* node, std::vector<int>& result) {
-        if (node != nullptr) {
+    void inorder_helper(Node *node, std::vector<int> &result)
+    {
+        if (node != nullptr)
+        {
             inorder_helper(node->left, result);
             result.push_back(node->value);
             inorder_helper(node->right, result);
         }
     }
 
-    void range_scan_helper(Node* node, int key1, int key2, std::vector<std::pair<int, int>>& result) {
+    void range_scan_helper(Node *node, int key1, int key2, std::vector<std::pair<int, int>> &result)
+    {
         /*
             Recursive helper function that traverses AVL tree with boundary checking.
             Collects key-value pairs where key1 < key < key2 during in-order traversal.
         */
-        if (node == nullptr) {
+        if (node == nullptr)
+        {
             return;
         }
 
         // If current node's key is greater than key1, traverse left subtree
-        if (node->key > key1) {
+        if (node->key > key1)
+        {
             range_scan_helper(node->left, key1, key2, result);
         }
 
         // If current node's key is in range (key1 < key < key2), add to result
-        if (node->key > key1 && node->key < key2) {
+        if (node->key > key1 && node->key < key2)
+        {
             result.push_back(std::make_pair(node->key, node->value));
         }
 
         // If current node's key is less than key2, traverse right subtree
-        if (node->key < key2) {
+        if (node->key < key2)
+        {
             range_scan_helper(node->right, key1, key2, result);
         }
     }
 
-    void collect_all_pairs(Node* node, std::vector<std::pair<int, int>>& pairs) {
+    void collect_all_pairs(Node *node, std::vector<std::pair<int, int>> &pairs)
+    {
         /*
             Recursive function to collect all key-value pairs from AVL tree in sorted order.
             Uses in-order traversal to maintain ascending key order.
         */
-        if (node == nullptr) {
+        if (node == nullptr)
+        {
             return;
         }
 
@@ -198,44 +226,53 @@ private:
         collect_all_pairs(node->right, pairs);
     }
 
-    int count_sst_files() {
+    int count_sst_files()
+    {
         /*
             Function to count existing SST files in database directory.
             Handles case where directory doesn't exist yet.
             Returns count for determining next file number.
         */
-        if (databaseDirectory.empty()) {
+        if (databaseDirectory.empty())
+        {
             return 0;
         }
 
         // Check if directory exists using stat
         struct stat st;
-        if (stat(databaseDirectory.c_str(), &st) != 0) {
+        if (stat(databaseDirectory.c_str(), &st) != 0)
+        {
             return 0;
         }
 
         int count = 0;
-        DIR* dir = opendir(databaseDirectory.c_str());
-        if (dir == nullptr) {
+        DIR *dir = opendir(databaseDirectory.c_str());
+        if (dir == nullptr)
+        {
             cout << "Error opening directory: " << databaseDirectory << endl;
             return 0;
         }
 
-        struct dirent* entry;
-        while ((entry = readdir(dir)) != nullptr) {
+        struct dirent *entry;
+        while ((entry = readdir(dir)) != nullptr)
+        {
             std::string filename = entry->d_name;
             // Check if file matches SST pattern (number.txt)
-            if (filename.length() > 4 && filename.substr(filename.length() - 4) == ".txt") {
+            if (filename.length() > 4 && filename.substr(filename.length() - 4) == ".txt")
+            {
                 std::string numberPart = filename.substr(0, filename.length() - 4);
                 // Check if the filename before .txt is a number
                 bool isNumber = true;
-                for (char c : numberPart) {
-                    if (!std::isdigit(c)) {
+                for (char c : numberPart)
+                {
+                    if (!std::isdigit(c))
+                    {
                         isNumber = false;
                         break;
                     }
                 }
-                if (isNumber && !numberPart.empty()) {
+                if (isNumber && !numberPart.empty())
+                {
                     count++;
                 }
             }
@@ -245,13 +282,15 @@ private:
         return count;
     }
 
-    bool write_sst_file(const std::vector<std::pair<int, int>>& data, int fileNumber) {
+    bool write_sst_file(const std::vector<std::pair<int, int>> &data, int fileNumber)
+    {
         /*
             Function to create SST file with given data and file number.
             Uses simple text format: "key value" per line.
             Ensures atomic write operation (write to temp file, then rename).
         */
-        if (databaseDirectory.empty()) {
+        if (databaseDirectory.empty())
+        {
             cout << "Database directory not set" << endl;
             return false;
         }
@@ -261,182 +300,220 @@ private:
         std::string filepath = databaseDirectory + "/" + filename;
         std::string tempFilepath = filepath + ".tmp";
 
-        try {
+        try
+        {
             // Write to temporary file first for atomic operation
             std::ofstream tempFile(tempFilepath);
-            if (!tempFile.is_open()) {
+            if (!tempFile.is_open())
+            {
                 cout << "Failed to create temporary SST file: " << tempFilepath << endl;
                 return false;
             }
 
             // Write data in simple text format: "key value" per line
-            for (const auto& pair : data) {
+            for (const auto &pair : data)
+            {
                 tempFile << pair.first << " " << pair.second << "\n";
             }
 
             tempFile.close();
 
             // Check if write was successful
-            if (tempFile.fail()) {
+            if (tempFile.fail())
+            {
                 cout << "Failed to write data to temporary SST file" << endl;
                 std::remove(tempFilepath.c_str()); // Clean up temp file
                 return false;
             }
 
             // Atomically rename temp file to final file
-            if (std::rename(tempFilepath.c_str(), filepath.c_str()) != 0) {
+            if (std::rename(tempFilepath.c_str(), filepath.c_str()) != 0)
+            {
                 cout << "Failed to rename temporary file to final file" << endl;
                 std::remove(tempFilepath.c_str()); // Clean up temp file
                 return false;
             }
-            
+
             cout << "Successfully wrote SST file: " << filepath << " with " << data.size() << " entries" << endl;
             return true;
-
-        } catch (const std::exception& ex) {
+        }
+        catch (const std::exception &ex)
+        {
             cout << "Error writing SST file: " << ex.what() << endl;
             // Clean up temp file if it exists
             struct stat st;
-            if (stat(tempFilepath.c_str(), &st) == 0) {
+            if (stat(tempFilepath.c_str(), &st) == 0)
+            {
                 std::remove(tempFilepath.c_str());
             }
             return false;
         }
     }
 
-    void clear_memtable() {
+    void clear_memtable()
+    {
         /*
             Method to reset memtable state after flush.
             Resets currentSize to 0 and root to nullptr.
             Properly deallocates existing tree nodes to prevent memory leaks.
         */
-        if (root != nullptr) {
+        if (root != nullptr)
+        {
             delete_tree(root);
             root = nullptr;
         }
         currentSize = 0;
     }
 
-    void delete_tree(Node* node) {
+    void delete_tree(Node *node)
+    {
         /*
             Helper method to recursively delete all nodes in the tree.
         */
-        if (node != nullptr) {
+        if (node != nullptr)
+        {
             delete_tree(node->left);
             delete_tree(node->right);
             delete node;
         }
     }
 
-    bool create_directory(const std::string& path) {
+    bool create_directory(const std::string &path)
+    {
         /*
             Function to create database directory if it doesn't exist.
             Handles directory creation errors gracefully.
             Uses POSIX directory creation approach.
         */
-        try {
+        try
+        {
             // Check if directory already exists
             struct stat st;
-            if (stat(path.c_str(), &st) == 0) {
-                if (S_ISDIR(st.st_mode)) {
+            if (stat(path.c_str(), &st) == 0)
+            {
+                if (S_ISDIR(st.st_mode))
+                {
                     cout << "Directory already exists: " << path << endl;
                     return true;
-                } else {
+                }
+                else
+                {
                     cout << "Path exists but is not a directory: " << path << endl;
                     return false;
                 }
             }
 
             // Create directory with permissions 0755
-            if (mkdir(path.c_str(), 0755) == 0) {
+            if (mkdir(path.c_str(), 0755) == 0)
+            {
                 cout << "Successfully created directory: " << path << endl;
                 return true;
-            } else {
+            }
+            else
+            {
                 cout << "Failed to create directory: " << path << endl;
                 return false;
             }
-
-        } catch (const std::exception& ex) {
+        }
+        catch (const std::exception &ex)
+        {
             cout << "Unexpected error creating directory " << path << ": " << ex.what() << endl;
             return false;
         }
     }
 
 public:
-    AVL(int maxElements) : Memtable_ds(maxElements) {root = nullptr; currentSize = 0;}
+    AVL(int maxElements) : Memtable_ds(maxElements)
+    {
+        root = nullptr;
+        currentSize = 0;
+    }
 
-    Node* insert(int key, int value) override {
+    Node *insert(int key, int value) override
+    {
         // Check if memtable is at capacity before insertion
-        if (currentSize >= maxElements) {
+        if (currentSize >= maxElements)
+        {
             cout << "Memtable is at capacity (" << currentSize << "/" << maxElements << "), attempting to flush to SST" << endl;
-            
+
             // If at capacity, call flush_to_sst to create SST file
-            if (!flush_to_sst()) {
+            if (!flush_to_sst())
+            {
                 cout << "Error: Failed to flush memtable to SST file. Memtable remains full and cannot accept new insertions." << endl;
                 cout << "Possible causes: Database not opened, disk space issues, or file permission problems." << endl;
                 return nullptr;
             }
-            
+
             cout << "Successfully flushed memtable to SST. Proceeding with insertion in cleared memtable." << endl;
         }
-        
+
         cout << "Inserting key: " << key << " with value: " << value << endl;
-        
+
         // Maintain existing duplicate key prevention logic
         int dummy;
-        if (search(root, key, dummy)) {
+        if (search(root, key, dummy))
+        {
             cout << "Error: Key " << key << " already exists in memtable. Duplicate keys are not allowed." << endl;
             return nullptr;
         }
-        
+
         // Perform the insertion
         root = insert(root, key, value);
-        
-        if (root == nullptr) {
+
+        if (root == nullptr)
+        {
             cout << "Error: Insertion failed for key " << key << ". This should not happen after capacity and duplicate checks." << endl;
             return nullptr;
         }
-        
+
         return root;
     }
 
-    bool search(int key, int& value) override {
+    bool search(int key, int &value) override
+    {
         return search(root, key, value);
     }
 
-    Node* remove(int key) override {
+    Node *remove(int key) override
+    {
         cout << "Removing key: " << key << endl;
         return nullptr;
     }
 
-    int get_size() const override {
+    int get_size() const override
+    {
         return currentSize;
     }
 
-    int get_max_elements() const override {
+    int get_max_elements() const override
+    {
         return maxElements;
     }
 
-    std::vector<int> inorder() override {
+    std::vector<int> inorder() override
+    {
         std::vector<int> result;
         inorder_helper(root, result);
         return result;
     }
 
-    Node* timed_insert(int key, int value, int& time) override {
+    Node *timed_insert(int key, int value, int &time) override
+    {
         auto start = std::chrono::high_resolution_clock::now();
         cout << "Timed insert for key: " << key << " with value: " << value << endl;
-        Node* result = insert(key, value);
+        Node *result = insert(key, value);
         auto end = std::chrono::high_resolution_clock::now();
         time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-        if (result == nullptr) {
+        if (result == nullptr)
+        {
             cout << "Insertion failed. Memtable might be full or key already exists." << endl;
             return nullptr;
         }
         return result;
     }
 
-    bool timed_search(int key, int& value, int& time) override {
+    bool timed_search(int key, int &value, int &time) override
+    {
         auto start = std::chrono::high_resolution_clock::now();
         cout << "Timed search for key: " << key << endl;
         auto end = std::chrono::high_resolution_clock::now();
@@ -444,7 +521,8 @@ public:
         return false;
     }
 
-    Node* timed_remove(int key, int& time) override {
+    Node *timed_remove(int key, int &time) override
+    {
         auto start = std::chrono::high_resolution_clock::now();
         cout << "Timed remove for key: " << key << endl;
         auto end = std::chrono::high_resolution_clock::now();
@@ -452,28 +530,31 @@ public:
         return nullptr;
     }
 
-    std::vector<std::pair<int, int>> range_scan(int key1, int key2) override {
+    std::vector<std::pair<int, int>> range_scan(int key1, int key2) override
+    {
         /*
             Public interface for range scanning that calls range_scan_helper.
             Returns all key-value pairs from memtable where key1 < key < key2.
             Handles edge cases like invalid ranges (key1 >= key2).
         */
         std::vector<std::pair<int, int>> result;
-        
+
         // Handle edge case: invalid range
-        if (key1 >= key2) {
+        if (key1 >= key2)
+        {
             cout << "Invalid range: key1 (" << key1 << ") must be less than key2 (" << key2 << ")" << endl;
             return result; // Return empty vector
         }
 
         // Perform range scan using helper function
         range_scan_helper(root, key1, key2, result);
-        
+
         cout << "Range scan from " << key1 << " to " << key2 << " found " << result.size() << " elements" << endl;
         return result;
     }
 
-    bool open_database(const std::string& dbName) override {
+    bool open_database(const std::string &dbName) override
+    {
         /*
             Sets database name and constructs directory path.
             Creates directory if it doesn't exist using create_directory.
@@ -482,14 +563,17 @@ public:
         cout << "Opening database: " << dbName << endl;
 
         // Validate database name
-        if (dbName.empty()) {
+        if (dbName.empty())
+        {
             cout << "Error: Database name cannot be empty" << endl;
             return false;
         }
 
         // Check for invalid characters in database name (basic validation)
-        for (char c : dbName) {
-            if (c == '/' || c == '\\' || c == ':' || c == '*' || c == '?' || c == '"' || c == '<' || c == '>' || c == '|') {
+        for (char c : dbName)
+        {
+            if (c == '/' || c == '\\' || c == ':' || c == '*' || c == '?' || c == '"' || c == '<' || c == '>' || c == '|')
+            {
                 cout << "Error: Database name contains invalid characters: " << dbName << endl;
                 return false;
             }
@@ -500,7 +584,8 @@ public:
         databaseDirectory = databaseName; // Simple approach: directory name = database name
 
         // Create directory if it doesn't exist
-        if (!create_directory(databaseDirectory)) {
+        if (!create_directory(databaseDirectory))
+        {
             cout << "Failed to create or access database directory: " << databaseDirectory << endl;
             databaseName.clear();
             databaseDirectory.clear();
@@ -515,7 +600,8 @@ public:
         return true;
     }
 
-    bool close_database() override {
+    bool close_database() override
+    {
         /*
             Checks if memtable has data using get_size().
             If memtable not empty, calls flush_to_sst to persist data.
@@ -524,7 +610,8 @@ public:
         cout << "Closing database: " << databaseName << endl;
 
         // Check if database is open
-        if (databaseName.empty()) {
+        if (databaseName.empty())
+        {
             cout << "No database is currently open" << endl;
             return true; // Not an error, just nothing to close
         }
@@ -532,17 +619,23 @@ public:
         bool success = true;
 
         // Check if memtable has data using get_size()
-        if (get_size() > 0) {
+        if (get_size() > 0)
+        {
             cout << "Memtable contains " << get_size() << " entries, flushing to SST before close" << endl;
-            
+
             // If memtable not empty, call flush_to_sst to persist data
-            if (!flush_to_sst()) {
+            if (!flush_to_sst())
+            {
                 cout << "Error: Failed to flush memtable data during database close" << endl;
                 success = false;
-            } else {
+            }
+            else
+            {
                 cout << "Successfully flushed memtable data to SST file" << endl;
             }
-        } else {
+        }
+        else
+        {
             cout << "Memtable is empty, no data to flush" << endl;
         }
 
@@ -551,16 +644,20 @@ public:
         databaseName.clear();
         databaseDirectory.clear();
 
-        if (success) {
+        if (success)
+        {
             cout << "Database closed successfully" << endl;
-        } else {
+        }
+        else
+        {
             cout << "Database closed with errors (data may have been lost)" << endl;
         }
 
         return success;
     }
 
-    bool flush_to_sst() override {
+    bool flush_to_sst() override
+    {
         /*
             Collects all pairs from current memtable using collect_all_pairs.
             Determines next file number using count_sst_files.
@@ -570,7 +667,8 @@ public:
         cout << "Flushing memtable to SST file" << endl;
 
         // Check if memtable has any data
-        if (currentSize == 0 || root == nullptr) {
+        if (currentSize == 0 || root == nullptr)
+        {
             cout << "Memtable is empty, nothing to flush" << endl;
             return true; // Not an error, just nothing to do
         }
@@ -579,7 +677,8 @@ public:
         std::vector<std::pair<int, int>> pairs;
         collect_all_pairs(root, pairs);
 
-        if (pairs.empty()) {
+        if (pairs.empty())
+        {
             cout << "No pairs collected from memtable" << endl;
             return true; // Not an error, just nothing to do
         }
@@ -589,16 +688,229 @@ public:
 
         // Write data to SST file
         bool writeSuccess = write_sst_file(pairs, fileNumber);
-        
-        if (!writeSuccess) {
+
+        if (!writeSuccess)
+        {
             cout << "Failed to write SST file, memtable not cleared" << endl;
             return false;
         }
 
         // Clear memtable only after successful write
         clear_memtable();
-        
+
         cout << "Successfully flushed " << pairs.size() << " entries to SST file " << fileNumber << ".txt" << endl;
         return true;
+    }
+
+    bool get(int key, int &value)
+    {
+        if (search(root, key, value))
+        {
+            cout << "Key " << key << " found in memtable with value " << value << endl;
+            return true;
+        }
+        // If not found in memtable, check SST files
+        return get_from_sst(key, value);
+    }
+
+    bool get_from_sst(int key, int &value)
+    {
+        if (databaseDirectory.empty())
+        {
+            cout << "Database directory not set, cannot search SST files" << endl;
+            return false;
+        }
+
+        struct stat st;
+        if (stat(databaseDirectory.c_str(), &st) != 0)
+        {
+            cout << "Database directory does not exist: " << databaseDirectory << endl;
+            return false;
+        }
+
+        DIR *dir = opendir(databaseDirectory.c_str());
+        if (!dir)
+        {
+            cout << "Error opening database directory: " << databaseDirectory << endl;
+            return false;
+        }
+
+        // Collect SST numbers
+        std::vector<int> sstNumbers;
+        struct dirent *entry;
+        while ((entry = readdir(dir)) != nullptr)
+        {
+            std::string filename = entry->d_name;
+            if (filename.length() > 4 && filename.substr(filename.length() - 4) == ".txt")
+            {
+                std::string numberPart = filename.substr(0, filename.length() - 4);
+                bool isNumber = true;
+                for (char c : numberPart)
+                {
+                    if (!std::isdigit(c))
+                    {
+                        isNumber = false;
+                        break;
+                    }
+                }
+                if (isNumber && !numberPart.empty())
+                {
+                    sstNumbers.push_back(std::stoi(numberPart));
+                }
+            }
+        }
+        closedir(dir);
+
+        // Sort newest → oldest
+        std::sort(sstNumbers.begin(), sstNumbers.end(), std::greater<int>());
+
+        // Search SSTs
+        for (int num : sstNumbers)
+        {
+            std::string filepath = databaseDirectory + "/" + std::to_string(num) + ".txt";
+            std::ifstream sstFile(filepath);
+            if (!sstFile.is_open())
+            {
+                cout << "Failed to open SST file: " << filepath << endl;
+                continue;
+            }
+
+            // Load SST into memory
+            std::vector<std::pair<int, int>> pairs;
+            int fileKey, fileValue;
+            while (sstFile >> fileKey >> fileValue)
+            {
+                pairs.emplace_back(fileKey, fileValue);
+            }
+            sstFile.close();
+
+            // Binary search in this SST
+            if (binary_search_sst(pairs, key, value))
+            {
+                cout << "Key " << key << " found in SST file " << filepath
+                     << " with value " << value << endl;
+                return true;
+            }
+        }
+
+        cout << "Key " << key << " not found in any SST files" << endl;
+        return false;
+    }
+
+    bool binary_search_sst(const std::vector<std::pair<int, int>> &pairs, int key, int &value)
+    {
+        int left = 0, right = (int)pairs.size() - 1;
+        while (left <= right)
+        {
+            int mid = left + (right - left) / 2;
+            if (pairs[mid].first == key)
+            {
+                value = pairs[mid].second;
+                return true;
+            }
+            if (pairs[mid].first < key)
+            {
+                left = mid + 1;
+            }
+            else
+            {
+                right = mid - 1;
+            }
+        }
+        return false;
+    }
+
+    std::vector<std::pair<int, int>> range_scan_with_sst(int key1, int key2)
+    {
+        std::vector<std::pair<int, int>> result;
+
+        if (key1 >= key2)
+        {
+            std::cout << "Invalid range: key1 (" << key1
+                      << ") must be less than key2 (" << key2 << ")" << std::endl;
+            return result;
+        }
+
+        // --- 1. Collect from memtable (AVL) ---
+        std::unordered_set<int> seenKeys;
+        range_scan_helper(root, key1, key2, result);
+        for (auto &p : result)
+        {
+            seenKeys.insert(p.first);
+        }
+
+        // --- 2. Collect from SSTs ---
+        if (!databaseDirectory.empty())
+        {
+            DIR *dir = opendir(databaseDirectory.c_str());
+            if (dir)
+            {
+                std::vector<int> sstNumbers;
+                struct dirent *entry;
+                while ((entry = readdir(dir)) != nullptr)
+                {
+                    std::string filename = entry->d_name;
+                    if (filename.length() > 4 && filename.substr(filename.length() - 4) == ".txt")
+                    {
+                        std::string numberPart = filename.substr(0, filename.length() - 4);
+                        bool isNumber = true;
+                        for (char c : numberPart)
+                        {
+                            if (!std::isdigit(c))
+                            {
+                                isNumber = false;
+                                break;
+                            }
+                        }
+                        if (isNumber && !numberPart.empty())
+                        {
+                            sstNumbers.push_back(std::stoi(numberPart));
+                        }
+                    }
+                }
+                closedir(dir);
+
+                // Newest → oldest
+                std::sort(sstNumbers.begin(), sstNumbers.end(), std::greater<int>());
+
+                for (int num : sstNumbers)
+                {
+                    std::string filepath = databaseDirectory + "/" + std::to_string(num) + ".txt";
+                    std::ifstream sstFile(filepath);
+                    if (!sstFile.is_open())
+                    {
+                        std::cout << "Failed to open SST file: " << filepath << std::endl;
+                        continue;
+                    }
+
+                    int fileKey, fileValue;
+                    while (sstFile >> fileKey >> fileValue)
+                    {
+                        if (fileKey <= key1)
+                        {
+                            continue; // Not yet in range
+                        }
+                        if (fileKey >= key2)
+                        {
+                            break; // Stop early (ascending order)
+                        }
+                        if (seenKeys.find(fileKey) == seenKeys.end())
+                        {
+                            result.push_back({fileKey, fileValue});
+                            seenKeys.insert(fileKey);
+                        }
+                    }
+                }
+            }
+        }
+
+        // --- 3. Final sort by key ---
+        std::sort(result.begin(), result.end(),
+                  [](const auto &a, const auto &b)
+                  { return a.first < b.first; });
+
+        std::cout << "Range scan from " << key1 << " to " << key2
+                  << " found " << result.size() << " unique elements" << std::endl;
+        return result;
     }
 };
