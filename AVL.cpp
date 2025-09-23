@@ -8,7 +8,8 @@
 #include <dirent.h>
 #include <cstdio>
 #include <unordered_set>
-#include <algorithm> 
+#include <algorithm>
+#include <cctype> 
 using namespace std;
 
 class AVL : public Memtable_ds
