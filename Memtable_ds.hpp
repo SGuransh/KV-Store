@@ -20,6 +20,7 @@ protected:
 
 public:
     Memtable_ds(int maxElements) : maxElements(maxElements) {}
+    Memtable_ds(std::vector<std::pair<int, int>> sst, int maxElements) : maxElements(maxElements) {}
 
     virtual Node* insert(int key, int value) = 0;
     virtual bool search(int key, int& value) = 0;

@@ -769,6 +769,43 @@ void run_range_scan_with_sst_tests() {
     cleanup_test_directory(testDbName);
 }
 
+void test_making_tree_from_partial_sst() {
+
+    std::vector<std::pair<int, int>> sst = {
+        {10, 100}, {20, 200}, {30, 300}, {40, 400}, {50, 500},
+        {60, 600}, {70, 700}, {80, 800}, {90, 900}, {100, 1000}
+    };
+    int maxElements = 10;
+    AVL avl(sst, maxElements);
+    std::cout << "\n=== Test Making Tree from Partial SST ===" << std::endl;
+    std::cout << "Inorder traversal of the AVL tree created from SST: ";
+    std::vector<int> inorder_result = avl.inorder();
+    for (int key : inorder_result) {
+        std::cout << key << " ";
+    }
+    std::cout << std::endl;
+
+    /*
+    memtable->insert(16, 100);
+    memtable->insert(7, 200);
+    memtable->insert(53, 300);
+    memtable->insert(30, 400);
+    memtable->insert(55, 500);
+    memtable->insert(29, 600); 
+    */
+
+    sst = {
+        {16, 100}, {7, 200}, {53, 300}, {30, 400}, {55, 500}, {29, 600}
+    };
+    AVL avl2(sst, maxElements);
+    std::cout << "Inorder traversal of the AVL tree created from SST: " << std::endl;
+
+    std::vector<int> inorder_result2 = avl2.inorder();
+    for (int value : inorder_result2) {
+        std::cout << value << " ";
+    }
+}
+
 int main() {
     std::cout << "Running comprehensive test suite..." << std::endl;
     
@@ -780,6 +817,7 @@ int main() {
     run_integration_tests();
     run_sst_search_tests();
     run_range_scan_with_sst_tests();
+    test_making_tree_from_partial_sst();
     
     print_test_summary();
     

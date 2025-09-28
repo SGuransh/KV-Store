@@ -430,6 +430,16 @@ public:
         currentSize = 0;
     }
 
+    AVL(std::vector<std::pair<int, int>> sst, int maxElements) : Memtable_ds(sst, maxElements)
+    {
+        root = nullptr;
+        currentSize = 0;
+
+        for (auto& [key, value] : sst) {
+            insert(key, value); 
+        }
+    }
+
     Node *insert(int key, int value) override
     {
         // Check if memtable is at capacity before insertion
