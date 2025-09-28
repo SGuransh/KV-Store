@@ -36,11 +36,19 @@ public:
     
     // New virtual methods for persistent key-value store functionality
     virtual std::vector<std::pair<int, int>> range_scan(int key1, int key2) = 0;
-    virtual bool open_database(const std::string& dbName) = 0;
+    // virtual bool open_database(const std::string& dbName) = 0;
     virtual bool close_database() = 0;
     virtual bool flush_to_sst() = 0;
-    
+    virtual void clear_memtable() = 0;
+    virtual void setDatabaseName(const std::string& name) = 0;
+    virtual void setDatabaseDirectory(const std::string& dir) = 0;
+    virtual std::vector<std::pair<int, int>> range_scan_with_sst(int key1, int key2) = 0;
+    virtual bool get(int key, int &value) = 0;
+    // virtual bool create_directory(const std::string &path) = 0;
     virtual ~Memtable_ds() {}
 };
+std::unique_ptr<Memtable_ds> create_memtable(int maxElements); 
+std::unique_ptr<Memtable_ds> create_memtable(std::vector<std::pair<int, int>> sst, int maxElements);
+
 
 #endif // MEMTABLE_DS_HPP

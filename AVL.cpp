@@ -351,21 +351,6 @@ private:
         }
     }
 
-    void clear_memtable()
-    {
-        /*
-            Method to reset memtable state after flush.
-            Resets currentSize to 0 and root to nullptr.
-            Properly deallocates existing tree nodes to prevent memory leaks.
-        */
-        if (root != nullptr)
-        {
-            delete_tree(root);
-            root = nullptr;
-        }
-        currentSize = 0;
-    }
-
     void delete_tree(Node *node)
     {
         /*
@@ -435,8 +420,9 @@ public:
         root = nullptr;
         currentSize = 0;
 
-        for (auto& [key, value] : sst) {
-            insert(key, value); 
+        for (auto &[key, value] : sst)
+        {
+            insert(key, value);
         }
     }
 
@@ -480,6 +466,16 @@ public:
         return root;
     }
 
+    void setDatabaseName(const std::string &name) override
+    {
+        databaseName = name;
+    }
+void setDatabaseDirectory(const std::string &dir) override
+    {
+        databaseDirectory = dir;
+    }
+
+
     bool search(int key, int &value) override
     {
         return search(root, key, value);
@@ -489,6 +485,21 @@ public:
     {
         cout << "Removing key: " << key << endl;
         return nullptr;
+    }
+
+void clear_memtable() override
+    {
+        /*
+            Method to reset memtable state after flush.
+            Resets currentSize to 0 and root to nullptr.
+            Properly deallocates existing tree nodes to prevent memory leaks.
+        */
+        if (root != nullptr)
+        {
+            delete_tree(root);
+            root = nullptr;
+        }
+        currentSize = 0;
     }
 
     int get_size() const override
@@ -564,52 +575,52 @@ public:
         return result;
     }
 
-    bool open_database(const std::string &dbName) override
-    {
-        /*
-            Sets database name and constructs directory path.
-            Creates directory if it doesn't exist using create_directory.
-            Initializes empty memtable for new operations.
-        */
-        cout << "Opening database: " << dbName << endl;
+    // bool open_database(const std::string &dbName) override
+    // {
+    //     /*
+    //         Sets database name and constructs directory path.
+    //         Creates directory if it doesn't exist using create_directory.
+    //         Initializes empty memtable for new operations.
+    //     */
+    //     cout << "Opening database: " << dbName << endl;
 
-        // Validate database name
-        if (dbName.empty())
-        {
-            cout << "Error: Database name cannot be empty" << endl;
-            return false;
-        }
+    //     // Validate database name
+    //     if (dbName.empty())
+    //     {
+    //         cout << "Error: Database name cannot be empty" << endl;
+    //         return false;
+    //     }
 
-        // Check for invalid characters in database name (basic validation)
-        for (char c : dbName)
-        {
-            if (c == '/' || c == '\\' || c == ':' || c == '*' || c == '?' || c == '"' || c == '<' || c == '>' || c == '|')
-            {
-                cout << "Error: Database name contains invalid characters: " << dbName << endl;
-                return false;
-            }
-        }
+    //     // Check for invalid characters in database name (basic validation)
+    //     for (char c : dbName)
+    //     {
+    //         if (c == '/' || c == '\\' || c == ':' || c == '*' || c == '?' || c == '"' || c == '<' || c == '>' || c == '|')
+    //         {
+    //             cout << "Error: Database name contains invalid characters: " << dbName << endl;
+    //             return false;
+    //         }
+    //     }
 
-        // Set database name and construct directory path
-        databaseName = dbName;
-        databaseDirectory = databaseName; // Simple approach: directory name = database name
+    //     // Set database name and construct directory path
+    //     databaseName = dbName;
+    //     databaseDirectory = databaseName; // Simple approach: directory name = database name
 
-        // Create directory if it doesn't exist
-        if (!create_directory(databaseDirectory))
-        {
-            cout << "Failed to create or access database directory: " << databaseDirectory << endl;
-            databaseName.clear();
-            databaseDirectory.clear();
-            return false;
-        }
+    //     // Create directory if it doesn't exist
+    //     if (!create_directory(databaseDirectory))
+    //     {
+    //         cout << "Failed to create or access database directory: " << databaseDirectory << endl;
+    //         databaseName.clear();
+    //         databaseDirectory.clear();
+    //         return false;
+    //     }
 
-        // Initialize empty memtable for new operations
-        // Clear any existing data first
-        clear_memtable();
+    //     // Initialize empty memtable for new operations
+    //     // Clear any existing data first
+    //     clear_memtable();
 
-        cout << "Successfully opened database: " << databaseName << " at directory: " << databaseDirectory << endl;
-        return true;
-    }
+    //     cout << "Successfully opened database: " << databaseName << " at directory: " << databaseDirectory << endl;
+    //     return true;
+    // }
 
     bool close_database() override
     {
@@ -713,7 +724,7 @@ public:
         return true;
     }
 
-    bool get(int key, int &value)
+    bool get(int key, int &value) override
     {
         if (search(root, key, value))
         {
@@ -831,7 +842,7 @@ public:
         return false;
     }
 
-    std::vector<std::pair<int, int>> range_scan_with_sst(int key1, int key2)
+    std::vector<std::pair<int, int>> range_scan_with_sst(int key1, int key2) override
     {
         std::vector<std::pair<int, int>> result;
 
@@ -924,4 +935,13 @@ public:
                   << " found " << result.size() << " unique elements" << std::endl;
         return result;
     }
-};
+};    
+
+std::unique_ptr<Memtable_ds> create_memtable(int maxElements) 
+    {
+        return std::make_unique<AVL>(maxElements);
+    }
+std::unique_ptr<Memtable_ds> create_memtable(std::vector<std::pair<int, int>> sst, int maxElements) 
+    {
+        return std::make_unique<AVL>(sst, maxElements);
+    }
