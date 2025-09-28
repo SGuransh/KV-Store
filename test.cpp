@@ -1,4 +1,5 @@
-#include "AVL.cpp"
+// #include "AVL.cpp"
+#include "Database.cpp"
 #include <iostream>
 #include <fstream>
 #include <cassert>
@@ -369,8 +370,11 @@ void run_database_lifecycle_tests() {
     std::string testDbName = "test_lifecycle_db";
     cleanup_test_directory(testDbName);
     
-    AVL avl(5);
-    bool openResult = avl.open_database(testDbName);
+    // AVL avl(5);
+    // bool openResult = avl.open_database(testDbName);
+    Database db(5);
+    bool openResult = db.openDatabase(testDbName);
+
     std::cout << "Open result: " << (openResult ? "success" : "failed") << std::endl;
     std::cout << "Directory created: " << (directory_exists(testDbName) ? "yes" : "no") << std::endl;
     
@@ -382,11 +386,11 @@ void run_database_lifecycle_tests() {
     
     // Test 2: Insert data and close
     std::cout << "\nTest 2: Insert data and close database" << std::endl;
-    avl.insert(10, 100);
-    avl.insert(20, 200);
-    avl.insert(30, 300);
+    db.put(10, 100);
+    db.put(20, 200);
+    db.put(30, 300);
     
-    bool closeResult = avl.close_database();
+    bool closeResult = db.closeDatabase();
     std::cout << "Close result: " << (closeResult ? "success" : "failed") << std::endl;
     
     int sstCount = count_sst_files_in_directory(testDbName);
@@ -581,6 +585,190 @@ void run_integration_tests() {
     cleanup_test_directory(testDbName);
 }
 
+
+void run_sst_search_tests() {
+    std::cout << "\n=== SST Search Tests ===" << std::endl;
+
+    std::string testDbName = "test_sst_search";
+    cleanup_test_directory(testDbName);
+    mkdir(testDbName.c_str(), 0777);
+
+    // --- Create first fake SST file (1.txt)
+    std::string sstFilePath1 = testDbName + "/1.txt";
+    std::ofstream sstFile1(sstFilePath1);
+    if (sstFile1.is_open()) {
+        sstFile1 << "10 100\n";
+        sstFile1 << "20 200\n";
+        sstFile1 << "30 300\n";
+        sstFile1.close();
+    }
+
+    // --- Create second fake SST file (2.txt)
+    std::string sstFilePath2 = testDbName + "/2.txt";
+    std::ofstream sstFile2(sstFilePath2);
+    if (sstFile2.is_open()) {
+        sstFile2 << "40 400\n";
+        sstFile2 << "50 500\n";
+        sstFile2 << "60 600\n";
+        sstFile2.close();
+    }
+
+    // --- Create third fake SST file (3.txt)
+    std::string sstFilePath3 = testDbName + "/3.txt";
+    std::ofstream sstFile3(sstFilePath3);
+    if (sstFile3.is_open()) {
+        sstFile3 << "70 700\n";
+        sstFile3 << "80 800\n";
+        sstFile3 << "90 900\n";
+        sstFile3.close();
+    }
+
+    // Create AVL instance pointing to fake DB directory
+    AVL avl(5);
+    avl.open_database(testDbName);
+
+    int value;
+
+    // --- Test 1: Key in first SST
+    bool found1 = avl.get_from_sst(20, value);
+    if (found1 && value == 200) {
+        test_passed("SST Search Test 1: Key 20 found in SST 1.txt");
+    } else {
+        test_failed("SST Search Test 1: Key 20 not found or wrong value");
+    }
+
+    // --- Test 2: Key in second SST
+    bool found2 = avl.get_from_sst(50, value);
+    if (found2 && value == 500) {
+        test_passed("SST Search Test 2: Key 50 found in SST 2.txt");
+    } else {
+        test_failed("SST Search Test 2: Key 50 not found or wrong value");
+    }
+
+    // --- Test 3: Key in third SST
+    bool found3 = avl.get_from_sst(80, value);
+    if (found3 && value == 800) {
+        test_passed("SST Search Test 3: Key 80 found in SST 3.txt");
+    } else {
+        test_failed("SST Search Test 3: Key 80 not found or wrong value");
+    }
+
+    // --- Test 4: Key does not exist in any SST
+    bool found4 = avl.get_from_sst(999, value);
+    if (!found4) {
+        test_passed("SST Search Test 4: Non-existent key correctly not found");
+    } else {
+        test_failed("SST Search Test 4: Non-existent key incorrectly found");
+    }
+
+    // Clean up
+    cleanup_test_directory(testDbName);
+}
+
+void run_range_scan_with_sst_tests() {
+    std::cout << "\n=== Range Scan with SST Tests ===" << std::endl;
+
+    std::string testDbName = "test_range_scan_sst";
+    cleanup_test_directory(testDbName);
+    mkdir(testDbName.c_str(), 0777);
+
+    // --- Create SST 1: multiple keys
+    {
+        std::ofstream sst(testDbName + "/1.txt");
+        sst << "10 100\n";
+        sst << "20 200\n";
+        sst << "30 300\n";
+        sst.close();
+    }
+
+    // --- Create SST 2: multiple keys
+    {
+        std::ofstream sst(testDbName + "/2.txt");
+        sst << "40 400\n";
+        sst << "50 500\n";
+        sst << "60 600\n";
+        sst.close();
+    }
+
+    // --- Create SST 3: one key
+    {
+        std::ofstream sst(testDbName + "/3.txt");
+        sst << "70 700\n";
+        sst.close();
+    }
+
+    // --- Create SST 4: empty file
+    {
+        std::ofstream sst(testDbName + "/4.txt");
+        // no data written
+        sst.close();
+    }
+
+    AVL avl(5);
+    avl.open_database(testDbName);
+
+    // --- Test 1: Range spanning SST 1 + SST 2
+    auto result1 = avl.range_scan_with_sst(15, 55);
+    std::cout << "Test 1: Range (15,55) → Expected keys: 20,30,40,50" << std::endl;
+    if (result1.size() == 4 &&
+        result1[0].first == 20 &&
+        result1[1].first == 30 &&
+        result1[2].first == 40 &&
+        result1[3].first == 50) {
+        test_passed("Range Scan Test 1: Spanning multiple SSTs");
+    } else {
+        test_failed("Range Scan Test 1: Spanning multiple SSTs");
+    }
+
+    // --- Test 2: Range inside SST 1
+    auto result2 = avl.range_scan_with_sst(5, 25);
+    std::cout << "Test 2: Range (5,25) → Expected keys: 10,20" << std::endl;
+    if (result2.size() == 2 &&
+        result2[0].first == 10 &&
+        result2[1].first == 20) {
+        test_passed("Range Scan Test 2: Inside single SST");
+    } else {
+        test_failed("Range Scan Test 2: Inside single SST");
+    }
+
+    // --- Test 3: Range inside SST with 1 element
+    auto result3 = avl.range_scan_with_sst(65, 75);
+    std::cout << "Test 3: Range (65,75) → Expected keys: 70" << std::endl;
+    if (result3.size() == 1 && result3[0].first == 70) {
+        test_passed("Range Scan Test 3: Single-element SST");
+    } else {
+        test_failed("Range Scan Test 3: Single-element SST");
+    }
+
+    // --- Test 4: Range inside empty SST (should return nothing)
+    auto result4 = avl.range_scan_with_sst(200, 300);
+    std::cout << "Test 4: Range (200,300) → Expected: 0 elements" << std::endl;
+    if (result4.empty()) {
+        test_passed("Range Scan Test 4: Empty SST returns no results");
+    } else {
+        test_failed("Range Scan Test 4: Empty SST incorrect results");
+    }
+
+    // --- Test 5: Range covering all SSTs
+    auto result5 = avl.range_scan_with_sst(0, 1000);
+    std::cout << "Test 5: Range (0,1000) → Expected all keys" << std::endl;
+    if (result5.size() == 7 &&
+        result5[0].first == 10 &&
+        result5[1].first == 20 &&
+        result5[2].first == 30 &&
+        result5[3].first == 40 &&
+        result5[4].first == 50 &&
+        result5[5].first == 60 &&
+        result5[6].first == 70) {
+        test_passed("Range Scan Test 5: Full range across all SSTs");
+    } else {
+        test_failed("Range Scan Test 5: Full range across all SSTs");
+    }
+
+    avl.close_database();
+    cleanup_test_directory(testDbName);
+}
+
 int main() {
     std::cout << "Running comprehensive test suite..." << std::endl;
     
@@ -590,6 +778,8 @@ int main() {
     run_database_lifecycle_tests();
     run_auto_flush_tests();
     run_integration_tests();
+    run_sst_search_tests();
+    run_range_scan_with_sst_tests();
     
     print_test_summary();
     

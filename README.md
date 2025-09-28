@@ -2,9 +2,9 @@
 
 # Compile AVL.cpp as object file
 
-g++ -c AVL.cpp -o AVL.o
+g++ -std=c++17 -c AVL.cpp -o AVL.o
 
 # Compile and run test suite
 
-g++ -o test test.cpp
+g++ -std=c++17 -o test test.cpp
 ./test
