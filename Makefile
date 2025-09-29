@@ -7,7 +7,7 @@ SOURCES = AVL.cpp FileOperations.cpp Database.cpp
 HEADERS = Memtable_ds.hpp FileOperations.hpp
 
 # Test executables
-TESTS = test_avl test_memtable test_database
+TESTS = test_avl test_memtable test_database test
 
 # Default target
 all: $(TESTS)
