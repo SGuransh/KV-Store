@@ -36,9 +36,10 @@ public:
     
     // New virtual methods for persistent key-value store functionality
     virtual std::vector<std::pair<int, int>> range_scan(int key1, int key2) = 0;
-    virtual bool open_database(const std::string& dbName) = 0;
-    virtual bool close_database() = 0;
-    virtual bool flush_to_sst() = 0;
+    virtual bool flush_to_sst(int fileNumber, bool isComplete = true) = 0;
+    virtual bool load_from_sst(const std::vector<std::pair<int, int>>& data) = 0;
+    virtual void set_next_file_number(int nextFileNum) = 0;
+    virtual void set_database_directory(const std::string& dbDir) = 0;
     
     virtual ~Memtable_ds() {}
 };

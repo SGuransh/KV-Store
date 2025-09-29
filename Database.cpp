@@ -1,70 +1,188 @@
 #include "AVL.cpp"
+#include "FileOperations.hpp"
 #include <iostream>
-#include <string>
-#include <vector>
-#include <utility>
 
 class Database {
 private:
-    AVL *engine;   // underlying storage engine (AVL + SST)
+    Memtable_ds* engine;
+    std::string databaseName;
+    std::string databaseDirectory;
     bool isOpen;
+    int nextFileNumber;
+
+    bool load_incomplete_file() {
+        std::string incompleteFile = databaseDirectory + "/incomplete.txt";
+        
+        if (!FileOperations::file_exists(incompleteFile)) {
+            std::cout << "No incomplete.txt file found" << std::endl;
+            return true;
+        }
+
+        std::cout << "Loading incomplete.txt file..." << std::endl;
+        std::vector<std::pair<int, int>> data = FileOperations::read_sst_file(incompleteFile);
+        
+        if (data.empty()) {
+            std::cout << "Incomplete file is empty, removing it" << std::endl;
+            FileOperations::remove_file(incompleteFile);
+            return true;
+        }
+
+        bool loadSuccess = engine->load_from_sst(data);
+        if (loadSuccess) {
+            std::cout << "Successfully loaded " << data.size() << " entries from incomplete.txt" << std::endl;
+            FileOperations::remove_file(incompleteFile);
+            return true;
+        } else {
+            std::cout << "Failed to load data from incomplete.txt" << std::endl;
+            return false;
+        }
+    }
 
 public:
     Database(int memtableCapacity = 1000) {
         engine = new AVL(memtableCapacity);
         isOpen = false;
+        nextFileNumber = 1;
     }
 
     ~Database() {
         if (isOpen) {
-            closeDatabase();
+            close_database();
         }
         delete engine;
     }
 
-    bool openDatabase(const std::string &name) {
-        if (isOpen) {
-            std::cout << "Database already open!" << std::endl;
+    bool open_database(const std::string& dbName) {
+        std::cout << "Opening database: " << dbName << std::endl;
+
+        if (dbName.empty()) {
+            std::cout << "Error: Database name cannot be empty" << std::endl;
             return false;
         }
-        if (engine->open_database(name)) {
-            isOpen = true;
+
+        // Basic validation for invalid characters
+        for (char c : dbName) {
+            if (c == '/' || c == '\\' || c == ':' || c == '*' || c == '?' || 
+                c == '"' || c == '<' || c == '>' || c == '|') {
+                std::cout << "Error: Database name contains invalid characters: " << dbName << std::endl;
+                return false;
+            }
+        }
+
+        databaseName = dbName;
+        databaseDirectory = databaseName;
+
+        if (!FileOperations::create_directory(databaseDirectory)) {
+            std::cout << "Failed to create or access database directory: " << databaseDirectory << std::endl;
+            databaseName.clear();
+            databaseDirectory.clear();
+            return false;
+        }
+
+        int fileCount = FileOperations::count_sst_files(databaseDirectory);
+        nextFileNumber = fileCount + 1;
+        
+        engine->set_next_file_number(nextFileNumber);
+        engine->set_database_directory(databaseDirectory);
+
+        if (!load_incomplete_file()) {
+            std::cout << "Failed to load incomplete data" << std::endl;
+            databaseName.clear();
+            databaseDirectory.clear();
+            return false;
+        }
+
+        isOpen = true;
+        std::cout << "Successfully opened database: " << databaseName << " at directory: " << databaseDirectory << std::endl;
+        std::cout << "Found " << fileCount << " existing SST files, next file number: " << nextFileNumber << std::endl;
+        return true;
+    }
+
+    bool close_database() {
+        std::cout << "Closing database: " << databaseName << std::endl;
+
+        if (!isOpen || databaseName.empty()) {
+            std::cout << "No database is currently open" << std::endl;
+            return true;
+        }
+
+        bool success = true;
+
+        if (engine->get_size() > 0) {
+            std::cout << "Memtable contains " << engine->get_size() << " entries, flushing before close" << std::endl;
+            
+            bool isComplete = (engine->get_size() == engine->get_max_elements());
+            
+            if (isComplete) {
+                if (!engine->flush_to_sst(nextFileNumber, true)) {
+                    std::cout << "Error: Failed to flush complete memtable data during database close" << std::endl;
+                    success = false;
+                } else {
+                    std::cout << "Successfully flushed complete memtable data to SST file " << nextFileNumber << ".txt" << std::endl;
+                    nextFileNumber++;
+                }
+            } else {
+                if (!engine->flush_to_sst(-1, false)) {
+                    std::cout << "Error: Failed to flush incomplete memtable data during database close" << std::endl;
+                    success = false;
+                } else {
+                    std::cout << "Successfully flushed incomplete memtable data to incomplete.txt" << std::endl;
+                }
+            }
+        } else {
+            std::cout << "Memtable is empty, no data to flush" << std::endl;
+        }
+
+        databaseName.clear();
+        databaseDirectory.clear();
+        isOpen = false;
+        nextFileNumber = 1;
+
+        if (success) {
+            std::cout << "Database closed successfully" << std::endl;
+        } else {
+            std::cout << "Database closed with errors (data may have been lost)" << std::endl;
+        }
+
+        return success;
+    }
+
+    // Core database operations
+    bool insert(int key, int value) {
+        if (!isOpen) {
+            std::cout << "Error: Database is not open" << std::endl;
+            return false;
+        }
+        auto result = engine->insert(key, value);
+        if (result != nullptr) {
+            if (engine->get_size() < engine->get_max_elements()) {
+                nextFileNumber++;
+                engine->set_next_file_number(nextFileNumber);
+            }
             return true;
         }
         return false;
     }
 
-    bool closeDatabase() {
+    bool search(int key, int& value) {
         if (!isOpen) {
-            std::cout << "No database is currently open" << std::endl;
+            std::cout << "Error: Database is not open" << std::endl;
             return false;
         }
-        bool result = engine->close_database();
-        isOpen = false;
-        return result;
+        return engine->search(key, value);
     }
 
-    bool put(int key, int value) {
+    std::vector<std::pair<int, int>> range_scan(int key1, int key2) {
         if (!isOpen) {
-            std::cout << "Error: Database not open" << std::endl;
-            return false;
+            std::cout << "Error: Database is not open" << std::endl;
+            return std::vector<std::pair<int, int>>();
         }
-        return engine->insert(key, value) != nullptr;
+        return engine->range_scan(key1, key2);
     }
 
-    bool get(int key, int &value) {
-        if (!isOpen) {
-            std::cout << "Error: Database not open" << std::endl;
-            return false;
-        }
-        return engine->get(key, value);
-    }
-
-    std::vector<std::pair<int,int>> scan(int key1, int key2) {
-        if (!isOpen) {
-            std::cout << "Error: Database not open" << std::endl;
-            return {};
-        }
-        return engine->range_scan_with_sst(key1, key2);
-    }
+    // Getters
+    int get_size() const { return engine->get_size(); }
+    int get_max_elements() const { return engine->get_max_elements(); }
+    bool is_open() const { return isOpen; }
+    std::string get_database_name() const { return databaseName; }
 };
