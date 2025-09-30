@@ -1,5 +1,5 @@
-#include "FileOperations.cpp"
-#include "AVL.cpp"
+#include "../FileOperations.cpp"
+#include "../AVL.cpp"
 #include <iostream>
 
 int memtable_tests_passed = 0;
