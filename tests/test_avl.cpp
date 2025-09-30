@@ -1,5 +1,5 @@
-#include "FileOperations.cpp"
-#include "AVL.cpp"
+#include "../FileOperations.cpp"
+#include "../AVL.cpp"
 #include <iostream>
 
 int avl_tests_passed = 0;

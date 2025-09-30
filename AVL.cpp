@@ -158,24 +158,19 @@ public:
     Node* insert(int key, int value) override {
         if (currentSize >= maxElements) {
             cout << "Memtable is at capacity (" << currentSize << "/" << maxElements << "), attempting to flush to SST" << endl;
-            
             if (!flush_to_sst(nextFileNumber, true)) {
                 cout << "Error: Failed to flush memtable to SST file." << endl;
                 return nullptr;
             }
-            
             cout << "Successfully flushed memtable to SST. Proceeding with insertion." << endl;
             nextFileNumber++;
         }
-        
         cout << "Inserting key: " << key << " with value: " << value << endl;
-        
         int dummy;
         if (search(root, key, dummy)) {
             cout << "Error: Key " << key << " already exists in memtable." << endl;
             return nullptr;
         }
-        
         root = insert(root, key, value);
         return root;
     }

@@ -10,15 +10,15 @@ int main() {
     
     // Run individual test executables
     std::cout << "\n--- Running AVL Tests ---" << std::endl;
-    int avl_result = system("./test_avl");
+    int avl_result = system("./out/test_avl");
     if (avl_result != 0) total_failures++;
     
     std::cout << "\n--- Running Memtable Tests ---" << std::endl;
-    int memtable_result = system("./test_memtable");
+    int memtable_result = system("./out/test_memtable");
     if (memtable_result != 0) total_failures++;
     
     std::cout << "\n--- Running Database Tests ---" << std::endl;
-    int database_result = system("./test_database");
+    int database_result = system("./out/test_database");
     if (database_result != 0) total_failures++;
     
     // Print overall summary
