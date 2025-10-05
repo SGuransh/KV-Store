@@ -1,20 +1,16 @@
+#pragma once
+
 #include <vector>
 #include <utility>
 #include <string>
+#include <memory>
+#include "Node.hpp"
 
 #ifndef MEMTABLE_DS_HPP
 #define MEMTABLE_DS_HPP
 
 class Memtable_ds {
 protected:
-    struct Node {
-        int key;
-        int value;
-        Node* left;
-        Node* right;
-        int height;
-    };
-
     int maxElements;
     Node* root; 
 
@@ -43,5 +39,8 @@ public:
     
     virtual ~Memtable_ds() {}
 };
+
+std::unique_ptr<Memtable_ds> create_memtable(int maxElements); 
+std::unique_ptr<Memtable_ds> create_memtable(std::vector<std::pair<int, int>> sst, int maxElements);
 
 #endif // MEMTABLE_DS_HPP

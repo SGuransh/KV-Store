@@ -1,16 +1,31 @@
-#include "AVL.cpp"
+// #include "AVL.cpp"
+#include "Memtable_ds.hpp"
 #include "FileOperations.hpp"
 #include <iostream>
+#include "Database.hpp"
+#include "MemtableFactory.hpp"
 
-class Database {
-private:
-    Memtable_ds* engine;
-    std::string databaseName;
-    std::string databaseDirectory;
-    bool isOpen;
-    int nextFileNumber;
 
-    bool load_incomplete_file() {
+    // Memtable_ds* engine;
+    // std::string databaseName;
+    // std::string databaseDirectory;
+    // bool isOpen;
+    // int nextFileNumber;
+
+    Database::Database(int memtableCapacity) {
+        // engine = new AVL(memtableCapacity);
+        engine = create_memtable(MemtableType::AVL, memtableCapacity);
+        isOpen = false;
+        nextFileNumber = 1;
+    }
+
+    Database::~Database() {
+        if (isOpen) {
+            close_database();
+        }
+    }
+
+    bool Database::load_incomplete_file() {
         std::string incompleteFile = databaseDirectory + "/incomplete.txt";
         
         if (!FileOperations::file_exists(incompleteFile)) {
@@ -38,21 +53,8 @@ private:
         }
     }
 
-public:
-    Database(int memtableCapacity = 1000) {
-        engine = new AVL(memtableCapacity);
-        isOpen = false;
-        nextFileNumber = 1;
-    }
 
-    ~Database() {
-        if (isOpen) {
-            close_database();
-        }
-        delete engine;
-    }
-
-    bool open_database(const std::string& dbName) {
+    bool Database::open_database(const std::string& dbName) {
         std::cout << "Opening database: " << dbName << std::endl;
 
         if (dbName.empty()) {
@@ -98,7 +100,7 @@ public:
         return true;
     }
 
-    bool close_database() {
+    bool Database::close_database() {
         std::cout << "Closing database: " << databaseName << std::endl;
 
         if (!isOpen || databaseName.empty()) {
@@ -148,7 +150,7 @@ public:
     }
 
     // Core database operations
-    bool insert(int key, int value) {
+    bool Database::insert(int key, int value) {
         if (!isOpen) {
             std::cout << "Error: Database is not open" << std::endl;
             return false;
@@ -164,7 +166,7 @@ public:
         return false;
     }
 
-    bool search(int key, int& value) {
+    bool Database::search(int key, int& value) {
         if (!isOpen) {
             std::cout << "Error: Database is not open" << std::endl;
             return false;
@@ -172,7 +174,7 @@ public:
         return engine->search(key, value);
     }
 
-    std::vector<std::pair<int, int>> range_scan(int key1, int key2) {
+    std::vector<std::pair<int, int>> Database::range_scan(int key1, int key2) {
         if (!isOpen) {
             std::cout << "Error: Database is not open" << std::endl;
             return std::vector<std::pair<int, int>>();
@@ -181,8 +183,7 @@ public:
     }
 
     // Getters
-    int get_size() const { return engine->get_size(); }
-    int get_max_elements() const { return engine->get_max_elements(); }
-    bool is_open() const { return isOpen; }
-    std::string get_database_name() const { return databaseName; }
-};
+    int Database::get_size() const { return engine->get_size(); }
+    int Database::get_max_elements() const { return engine->get_max_elements(); }
+    bool Database::is_open() const { return isOpen; }
+    std::string Database::get_database_name() const { return databaseName; }

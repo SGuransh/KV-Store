@@ -11,7 +11,7 @@ C_DIR = cFiles
 # Source files
 SOURCES = $(SRC_DIR)/AVL.cpp $(SRC_DIR)/FileOperations.cpp $(SRC_DIR)/Database.cpp
 SRC = AVL.cpp FileOperations.cpp Database.cpp
-HEADERS = Memtable_ds.hpp FileOperations.hpp 
+HEADERS = Memtable_ds.hpp FileOperations.hpp Database.hpp AVL.hpp
 
 # Test sources
 TEST_SOURCES = $(wildcard $(TEST_DIR)/*.cpp)
@@ -23,12 +23,12 @@ TESTS = $(patsubst $(TEST_DIR)/%.cpp,$(OUT_DIR)/%,$(TEST_SOURCES))
 all: $(TESTS) test
 
 # Rule for building test executables directly from test + sources
-$(OUT_DIR)/%: $(TEST_DIR)/%.cpp 
+$(OUT_DIR)/%: $(TEST_DIR)/%.cpp $(SOURCES)
 	@mkdir -p $(OUT_DIR)
-	$(CXX) $(CXXFLAGS) $^ -o $@
+	$(CXX) $(CXXFLAGS) $< $(SOURCES) -o $@
 
 # Main test runner
-test: test.cpp
+test: test.cpp $(SOURCES)
 	$(CXX) $(CXXFLAGS) $^ -o $@
 	@./test
 
