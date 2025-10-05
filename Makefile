@@ -47,6 +47,8 @@ clean:
 	rm -rf $(OUT_DIR) test
 	rm -rf test_db_* test_memtable_dir
 	rm -rf $(C_DIR)
+	rm -rf test.exe
+	rm -rf *.o
 
 .PHONY: all test clean test-individual
 
