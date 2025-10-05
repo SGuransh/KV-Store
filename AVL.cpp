@@ -83,7 +83,10 @@ using namespace std;
     }
 
     bool search_helper(Node* node, int key, int& value) {
-        if (node == nullptr) return false;
+        if (node == nullptr) {
+            std::cout << "Key " << key << " not found" << std::endl;
+            return false;
+        }
         if (key == node->key) {
             value = node->value;
             return true;
@@ -165,6 +168,9 @@ using namespace std;
             }
             std::cout << "Successfully flushed memtable to SST. Proceeding with insertion." << endl;
             nextFileNumber++;
+
+            root = insert_helper(root, key, value, currentSize);
+            return root;
         }
         std::cout << "Inserting key: " << key << " with value: " << value << endl;
         int dummy;
@@ -172,6 +178,7 @@ using namespace std;
             std::cout << "Error: Key " << key << " already exists in memtable." << endl;
             return nullptr;
         }
+        std::cout << "Search complete" << std::endl;
         root = insert_helper(root, key, value, currentSize);
         return root;
     }
@@ -268,7 +275,8 @@ using namespace std;
         }
 
         clear_memtable(root, currentSize);
-        cout << "Successfully flushed " << pairs.size() << " entries to SST file" << endl;
+        root = nullptr;
+        currentSize = 0;
         return true;
     }
 
@@ -276,6 +284,11 @@ using namespace std;
         std::cout << "Loading " << data.size() << " entries into memtable" << std::endl;
 
         clear_memtable(root, currentSize);
+        root = nullptr;
+        currentSize = 0;
+
+        // Node* tree = new AVL(data, maxElements).get_root();
+        // currentSize = data.size();
         
         for (const auto& pair : data) {
             root = insert_helper(root, pair.first, pair.second, currentSize);

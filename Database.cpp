@@ -157,10 +157,6 @@
         }
         auto result = engine->insert(key, value);
         if (result != nullptr) {
-            if (engine->get_size() < engine->get_max_elements()) {
-                nextFileNumber++;
-                engine->set_next_file_number(nextFileNumber);
-            }
             return true;
         }
         return false;
