@@ -20,7 +20,11 @@ TEST_SOURCES = $(wildcard $(TEST_DIR)/*.cpp)
 TESTS = $(patsubst $(TEST_DIR)/%.cpp,$(OUT_DIR)/%,$(TEST_SOURCES))
 
 # Default target
-all: $(TESTS) test
+all: $(TESTS) test main
+
+# Main CLI application
+main: main.cpp $(SOURCES)
+	$(CXX) $(CXXFLAGS) $^ -o $@
 
 # Rule for building test executables directly from test + sources
 $(OUT_DIR)/%: $(TEST_DIR)/%.cpp $(SOURCES)
@@ -44,10 +48,10 @@ test-individual: $(TESTS)
 
 # Clean up
 clean:
-	rm -rf $(OUT_DIR) test
+	rm -rf $(OUT_DIR) test main
 	rm -rf test_db_* test_memtable_dir
 	rm -rf $(C_DIR)
 	rm -rf test.exe
 	rm -rf *.o
 
-.PHONY: all test clean test-individual
+.PHONY: all test clean test-individual main
