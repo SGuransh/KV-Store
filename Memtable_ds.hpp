@@ -36,6 +36,7 @@ public:
     virtual bool load_from_sst(const std::vector<std::pair<int, int>>& data) = 0;
     virtual void set_next_file_number(int nextFileNum) = 0;
     virtual void set_database_directory(const std::string& dbDir) = 0;
+    virtual int get_next_file_number() const = 0;
     
     virtual ~Memtable_ds() {}
 };

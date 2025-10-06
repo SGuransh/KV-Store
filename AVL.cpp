@@ -3,6 +3,7 @@
 #include <iostream>
 #include <chrono>
 #include <memory>
+#include <algorithm>
 using namespace std;
 
     // int currentSize = 0;
@@ -82,19 +83,24 @@ using namespace std;
         return node;
     }
 
-    bool search_helper(Node* node, int key, int& value) {
+    bool search_helper(Node* node, int key, int& value, bool verbose = true) {
         if (node == nullptr) {
-            std::cout << "Key " << key << " not found" << std::endl;
+            if (verbose) {
+                std::cout << "Key " << key << " not found in memtable" << std::endl;
+            }
             return false;
         }
         if (key == node->key) {
             value = node->value;
+            if (verbose) {
+                std::cout << "Key " << key << " found in memtable with value " << value << std::endl;
+            }
             return true;
         }
         if (key < node->key) {
-            return search_helper(node->left, key, value);
+            return search_helper(node->left, key, value, verbose);
         }
-        return search_helper(node->right, key, value);
+        return search_helper(node->right, key, value, verbose);
     }
 
     void inorder_helper(Node* node, std::vector<int>& result) {
@@ -111,7 +117,7 @@ using namespace std;
         if (node->key > key1) {
             range_scan_helper(node->left, key1, key2, result);
         }
-        if (node->key > key1 && node->key < key2) {
+        if (node->key >= key1 && node->key <= key2) {
             result.push_back(std::make_pair(node->key, node->value));
         }
         if (node->key < key2) {
@@ -174,17 +180,21 @@ using namespace std;
         }
         std::cout << "Inserting key: " << key << " with value: " << value << endl;
         int dummy;
-        if (search_helper(root, key, dummy)) {
+        if (search_helper(root, key, dummy, false)) { // Silent duplicate check
             std::cout << "Error: Key " << key << " already exists in memtable." << endl;
             return nullptr;
         }
-        std::cout << "Search complete" << std::endl;
         root = insert_helper(root, key, value, currentSize);
         return root;
     }
 
     bool AVL::search(int key, int& value) {
-        return search_helper(root, key, value);
+        // First search in memtable (verbose)
+        if (search_helper(root, key, value, true)) {
+            return true;
+        }
+        // If not found in memtable, search in SST files
+        return get_from_sst(key, value);
     }
 
     Node* AVL::remove(int key) {
@@ -216,7 +226,7 @@ using namespace std;
 
     bool AVL::timed_search(int key, int& value, int& time) {
         auto start = std::chrono::high_resolution_clock::now();
-        bool result = search_helper(root, key, value);
+        bool result = search_helper(root, key, value, false); // Silent for timing tests
         auto end = std::chrono::high_resolution_clock::now();
         time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
         return result;
@@ -233,12 +243,30 @@ using namespace std;
     std::vector<std::pair<int, int>> AVL::range_scan(int key1, int key2) {
         std::vector<std::pair<int, int>> result;
         
-        if (key1 >= key2) {
-            std::cout << "Invalid range: key1 (" << key1 << ") must be less than key2 (" << key2 << ")" << std::endl;
+        if (key1 > key2) {
+            std::cout << "Invalid range: key1 (" << key1 << ") must be less than or equal to key2 (" << key2 << ")" << std::endl;
             return result;
         }
 
+        // Get results from memtable
         range_scan_helper(root, key1, key2, result);
+        
+        // Get results from SST files and merge
+        std::vector<std::pair<int, int>> sst_results = range_scan_sst_files(key1, key2);
+        
+        // Merge results
+        result.insert(result.end(), sst_results.begin(), sst_results.end());
+        
+        // Sort by key to maintain order
+        std::sort(result.begin(), result.end());
+        
+        // Remove duplicates (keep first occurrence)
+        auto last = std::unique(result.begin(), result.end(), 
+            [](const std::pair<int,int>& a, const std::pair<int,int>& b) {
+                return a.first == b.first;
+            });
+        result.erase(last, result.end());
+        
         std::cout << "Range scan from " << key1 << " to " << key2 << " found " << result.size() << " elements" << std::endl;
         return result;
     }
@@ -309,4 +337,79 @@ using namespace std;
 
     void AVL::set_database_directory(const std::string& dbDir) {
         databaseDirectory = dbDir;
+    }
+
+    int AVL::get_next_file_number() const {
+        return nextFileNumber;
+    }
+
+    // Method to search for a key in SST files
+    bool AVL::get_from_sst(int key, int& value) {
+        if (databaseDirectory.empty()) {
+            return false;
+        }
+        
+        // Get count of SST files and search through them
+        int fileCount = FileOperations::count_sst_files(databaseDirectory);
+        
+        // Search through numbered SST files (1.txt, 2.txt, etc.)
+        for (int i = 1; i <= fileCount; i++) {
+            std::string filename = databaseDirectory + "/" + std::to_string(i) + ".txt";
+            if (FileOperations::file_exists(filename)) {
+                std::vector<std::pair<int, int>> pairs = FileOperations::read_sst_file(filename);
+                if (binary_search_sst(pairs, key, value)) {
+                    std::cout << "Key " << key << " found in SST file " << filename << " with value " << value << std::endl;
+                    return true;
+                }
+            }
+        }
+        
+        std::cout << "Key " << key << " not found in any SST files" << std::endl;
+        return false;
+    }
+
+    // Method to perform range scan on SST files
+    std::vector<std::pair<int, int>> AVL::range_scan_sst_files(int key1, int key2) {
+        std::vector<std::pair<int, int>> result;
+        
+        if (databaseDirectory.empty()) {
+            return result;
+        }
+        
+        // Get count of SST files and search through them
+        int fileCount = FileOperations::count_sst_files(databaseDirectory);
+        
+        // Search through numbered SST files (1.txt, 2.txt, etc.)
+        for (int i = 1; i <= fileCount; i++) {
+            std::string filename = databaseDirectory + "/" + std::to_string(i) + ".txt";
+            if (FileOperations::file_exists(filename)) {
+                std::vector<std::pair<int, int>> pairs = FileOperations::read_sst_file(filename);
+                // Add matching pairs from this SST file
+                for (const auto& pair : pairs) {
+                    if (pair.first >= key1 && pair.first <= key2) {
+                        result.push_back(pair);
+                    }
+                }
+            }
+        }
+        
+        return result;
+    }
+
+    // Binary search implementation for SST files
+    bool AVL::binary_search_sst(const std::vector<std::pair<int, int>>& pairs, int key, int& value) {
+        int left = 0, right = (int)pairs.size() - 1;
+        while (left <= right) {
+            int mid = left + (right - left) / 2;
+            if (pairs[mid].first == key) {
+                value = pairs[mid].second;
+                return true;
+            }
+            if (pairs[mid].first < key) {
+                left = mid + 1;
+            } else {
+                right = mid - 1;
+            }
+        }
+        return false;
     }
