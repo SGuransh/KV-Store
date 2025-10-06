@@ -1,3 +1,5 @@
+#pragma once
+
 #ifndef FILE_OPERATIONS_HPP
 #define FILE_OPERATIONS_HPP
 

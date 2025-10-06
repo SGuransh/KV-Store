@@ -1,5 +1,5 @@
-#include "../FileOperations.cpp"
-#include "../Database.cpp"
+#include "../FileOperations.hpp"
+#include "../Database.hpp"
 #include <iostream>
 
 int db_tests_passed = 0;

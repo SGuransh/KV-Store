@@ -1,14 +1,13 @@
-#include "Memtable_ds.hpp"
 #include "FileOperations.hpp"
+#include "AVL.hpp"
 #include <iostream>
 #include <chrono>
+#include <memory>
 using namespace std;
 
-class AVL : public Memtable_ds {
-private:
-    int currentSize = 0;
-    int nextFileNumber = 1;
-    std::string databaseDirectory;
+    // int currentSize = 0;
+    // int nextFileNumber = 1;
+    // std::string databaseDirectory;
 
     // Core AVL tree operations
     int height(Node* N) {
@@ -51,16 +50,16 @@ private:
        return x;
     }
 
-    Node* insert(Node* node, int key, int value) {
+    Node* insert_helper(Node* node, int key, int value, int& currentSize) {
         if (node == nullptr) {
-            currentSize++;
+            currentSize += 1;
             return newNode(key, value);
         }
 
         if (key > node->key) {
-            node->right = insert(node->right, key, value);
+            node->right = insert_helper(node->right, key, value, currentSize);
         } else if (key < node->key) {
-            node->left = insert(node->left, key, value);
+            node->left = insert_helper(node->left, key, value, currentSize);
         } else {
             return nullptr; // Duplicate key
         }
@@ -83,16 +82,19 @@ private:
         return node;
     }
 
-    bool search(Node* node, int key, int& value) {
-        if (node == nullptr) return false;
+    bool search_helper(Node* node, int key, int& value) {
+        if (node == nullptr) {
+            std::cout << "Key " << key << " not found" << std::endl;
+            return false;
+        }
         if (key == node->key) {
             value = node->value;
             return true;
         }
         if (key < node->key) {
-            return search(node->left, key, value);
+            return search_helper(node->left, key, value);
         }
-        return search(node->right, key, value);
+        return search_helper(node->right, key, value);
     }
 
     void inorder_helper(Node* node, std::vector<int>& result) {
@@ -124,14 +126,6 @@ private:
         collect_all_pairs(node->right, pairs);
     }
 
-    void clear_memtable() {
-        if (root != nullptr) {
-            delete_tree(root);
-            root = nullptr;
-        }
-        currentSize = 0;
-    }
-
     void delete_tree(Node* node) {
         if (node != nullptr) {
             delete_tree(node->left);
@@ -140,13 +134,23 @@ private:
         }
     }
 
-public:
-    AVL(int maxElements) : Memtable_ds(maxElements) {
+    void clear_memtable(Node* root, int& currentSize) {
+        if (root != nullptr) {
+            delete_tree(root);
+            root = nullptr;
+        }
+        currentSize = 0;
+    }
+
+// -----------------------------------------------------------------------------------------------------------------------------------------------
+// _______________________________________________________________________________________________________________________________________________
+
+    AVL::AVL(int maxElements) : Memtable_ds(maxElements) {
         root = nullptr; 
         currentSize = 0;
     }
 
-    AVL(std::vector<std::pair<int, int>> sst, int maxElements) : Memtable_ds(sst, maxElements) {
+    AVL::AVL(std::vector<std::pair<int, int>> sst, int maxElements) : Memtable_ds(sst, maxElements) {
         root = nullptr;
         currentSize = 0;
         for (const auto& pair : sst) {
@@ -155,50 +159,54 @@ public:
     }
 
     // Interface implementations
-    Node* insert(int key, int value) override {
+    Node* AVL::insert(int key, int value) {
         if (currentSize >= maxElements) {
-            cout << "Memtable is at capacity (" << currentSize << "/" << maxElements << "), attempting to flush to SST" << endl;
+            std::cout << "Memtable is at capacity (" << currentSize << "/" << maxElements << "), attempting to flush to SST" << endl;
             if (!flush_to_sst(nextFileNumber, true)) {
-                cout << "Error: Failed to flush memtable to SST file." << endl;
+                std::cout << "Error: Failed to flush memtable to SST file." << endl;
                 return nullptr;
             }
-            cout << "Successfully flushed memtable to SST. Proceeding with insertion." << endl;
+            std::cout << "Successfully flushed memtable to SST. Proceeding with insertion." << endl;
             nextFileNumber++;
+
+            root = insert_helper(root, key, value, currentSize);
+            return root;
         }
-        cout << "Inserting key: " << key << " with value: " << value << endl;
+        std::cout << "Inserting key: " << key << " with value: " << value << endl;
         int dummy;
-        if (search(root, key, dummy)) {
-            cout << "Error: Key " << key << " already exists in memtable." << endl;
+        if (search_helper(root, key, dummy)) {
+            std::cout << "Error: Key " << key << " already exists in memtable." << endl;
             return nullptr;
         }
-        root = insert(root, key, value);
+        std::cout << "Search complete" << std::endl;
+        root = insert_helper(root, key, value, currentSize);
         return root;
     }
 
-    bool search(int key, int& value) override {
-        return search(root, key, value);
+    bool AVL::search(int key, int& value) {
+        return search_helper(root, key, value);
     }
 
-    Node* remove(int key) override {
-        cout << "Remove operation not implemented" << endl;
+    Node* AVL::remove(int key) {
+        std::cout << "Remove operation not implemented" << std::endl;
         return nullptr;
     }
 
-    int get_size() const override {
+    int AVL::get_size() const {
         return currentSize;
     }
 
-    int get_max_elements() const override {
+    int AVL::get_max_elements() const {
         return maxElements;
     }
 
-    std::vector<int> inorder() override {
+    std::vector<int> AVL::inorder() {
         std::vector<int> result;
         inorder_helper(root, result);
         return result;
     }
 
-    Node* timed_insert(int key, int value, int& time) override {
+    Node* AVL::timed_insert(int key, int value, int& time) {
         auto start = std::chrono::high_resolution_clock::now();
         Node* result = insert(key, value);
         auto end = std::chrono::high_resolution_clock::now();
@@ -206,15 +214,15 @@ public:
         return result;
     }
 
-    bool timed_search(int key, int& value, int& time) override {
+    bool AVL::timed_search(int key, int& value, int& time) {
         auto start = std::chrono::high_resolution_clock::now();
-        bool result = search(key, value);
+        bool result = search_helper(root, key, value);
         auto end = std::chrono::high_resolution_clock::now();
         time = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
         return result;
     }
 
-    Node* timed_remove(int key, int& time) override {
+    Node* AVL::timed_remove(int key, int& time) {
         auto start = std::chrono::high_resolution_clock::now();
         Node* result = remove(key);
         auto end = std::chrono::high_resolution_clock::now();
@@ -222,24 +230,24 @@ public:
         return result;
     }
 
-    std::vector<std::pair<int, int>> range_scan(int key1, int key2) override {
+    std::vector<std::pair<int, int>> AVL::range_scan(int key1, int key2) {
         std::vector<std::pair<int, int>> result;
         
         if (key1 >= key2) {
-            cout << "Invalid range: key1 (" << key1 << ") must be less than key2 (" << key2 << ")" << endl;
+            std::cout << "Invalid range: key1 (" << key1 << ") must be less than key2 (" << key2 << ")" << std::endl;
             return result;
         }
 
         range_scan_helper(root, key1, key2, result);
-        cout << "Range scan from " << key1 << " to " << key2 << " found " << result.size() << " elements" << endl;
+        std::cout << "Range scan from " << key1 << " to " << key2 << " found " << result.size() << " elements" << std::endl;
         return result;
     }
 
-    bool flush_to_sst(int fileNumber, bool isComplete = true) override {
-        cout << "Flushing memtable to SST file" << endl;
+    bool AVL::flush_to_sst(int fileNumber, bool isComplete) {
+        std::cout << "Flushing memtable to SST file" << std::endl;
 
         if (currentSize == 0 || root == nullptr) {
-            cout << "Memtable is empty, nothing to flush" << endl;
+            std::cout << "Memtable is empty, nothing to flush" << std::endl;
             return true;
         }
 
@@ -266,34 +274,39 @@ public:
             return false;
         }
 
-        clear_memtable();
-        cout << "Successfully flushed " << pairs.size() << " entries to SST file" << endl;
+        clear_memtable(root, currentSize);
+        root = nullptr;
+        currentSize = 0;
         return true;
     }
 
-    bool load_from_sst(const std::vector<std::pair<int, int>>& data) override {
-        cout << "Loading " << data.size() << " entries into memtable" << endl;
-        
-        clear_memtable();
+    bool AVL::load_from_sst(const std::vector<std::pair<int, int>>& data) {
+        std::cout << "Loading " << data.size() << " entries into memtable" << std::endl;
+
+        clear_memtable(root, currentSize);
+        root = nullptr;
+        currentSize = 0;
+
+        // Node* tree = new AVL(data, maxElements).get_root();
+        // currentSize = data.size();
         
         for (const auto& pair : data) {
-            root = insert(root, pair.first, pair.second);
+            root = insert_helper(root, pair.first, pair.second, currentSize);
             if (root == nullptr) {
-                cout << "Failed to insert key " << pair.first << " during SST load" << endl;
+                std::cout << "Failed to insert key " << pair.first << " during SST load" << std::endl;
                 return false;
             }
         }
-        
-        cout << "Successfully loaded " << currentSize << " entries from SST data" << endl;
+
+        std::cout << "Successfully loaded " << currentSize << " entries from SST data" << std::endl;
         return true;
     }
 
-    void set_next_file_number(int nextFileNum) override {
+    void AVL::set_next_file_number(int nextFileNum) {
         nextFileNumber = nextFileNum;
-        cout << "Set next file number to: " << nextFileNumber << endl;
+        std::cout << "Set next file number to: " << nextFileNumber << std::endl;
     }
 
-    void set_database_directory(const std::string& dbDir) override {
+    void AVL::set_database_directory(const std::string& dbDir) {
         databaseDirectory = dbDir;
     }
-};
