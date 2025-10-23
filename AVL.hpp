@@ -30,4 +30,10 @@ public:
     bool load_from_sst(const std::vector<std::pair<int,int>>& data) override;
     void set_next_file_number(int nextFileNum) override;
     void set_database_directory(const std::string& dbDir) override;
+
+    // Additional methods for SST file operations
+    bool get_from_sst(int key, int& value);
+    std::vector<std::pair<int, int>> range_scan_sst_files(int key1, int key2);
+    bool binary_search_sst(const std::vector<std::pair<int, int>>& pairs, int key, int& value);
+    int get_next_file_number() const override;
 };

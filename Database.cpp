@@ -157,6 +157,8 @@
         }
         auto result = engine->insert(key, value);
         if (result != nullptr) {
+            // Sync the next file number in case a flush occurred during insert
+            nextFileNumber = engine->get_next_file_number();
             return true;
         }
         return false;

@@ -34,7 +34,7 @@ void printStatus(const Database& db) {
 }
 
 int main() {
-    Database db(2);  // Create database with capacity of 1000
+    Database db(10);  // Create database with capacity of 1000
     std::string line, command;
     
     std::cout << "\n╔═══════════════╗" << std::endl;
