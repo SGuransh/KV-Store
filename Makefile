@@ -9,9 +9,9 @@ OUT_DIR = out
 C_DIR = cFiles
 
 # Source files
-SOURCES = $(SRC_DIR)/AVL.cpp $(SRC_DIR)/FileOperations.cpp $(SRC_DIR)/Database.cpp
-SRC = AVL.cpp FileOperations.cpp Database.cpp
-HEADERS = Memtable_ds.hpp FileOperations.hpp Database.hpp AVL.hpp
+SOURCES = $(SRC_DIR)/AVL.cpp $(SRC_DIR)/FileOperations.cpp $(SRC_DIR)/Database.cpp $(SRC_DIR)/PageID.cpp $(SRC_DIR)/Page.cpp $(SRC_DIR)/MurmurHash.cpp $(SRC_DIR)/BucketNode.cpp $(SRC_DIR)/Bucket.cpp $(SRC_DIR)/HashTable.cpp $(SRC_DIR)/BufferPool.cpp $(SRC_DIR)/ClockEvictionPolicy.cpp
+SRC = AVL.cpp FileOperations.cpp Database.cpp PageID.cpp Page.cpp MurmurHash.cpp BucketNode.cpp Bucket.cpp HashTable.cpp BufferPool.cpp ClockEvictionPolicy.cpp
+HEADERS = Memtable_ds.hpp FileOperations.hpp Database.hpp AVL.hpp PageID.hpp Page.hpp MurmurHash.hpp BucketNode.hpp Bucket.hpp HashTable.hpp BufferPool.hpp ClockEvictionPolicy.hpp EvictionPolicy.hpp
 
 # Test sources
 TEST_SOURCES = $(wildcard $(TEST_DIR)/*.cpp)
