@@ -7,15 +7,17 @@
 
 void printHelp() {
     std::cout << "\n=== KV-Store Database Commands ===" << std::endl;
-    std::cout << "  open <db_name>          - Open/create a database" << std::endl;
-    std::cout << "  close                   - Close current database" << std::endl;
-    std::cout << "  insert <key> <value>    - Insert a key-value pair" << std::endl;
-    std::cout << "  search <key>            - Search for a key" << std::endl;
-    std::cout << "  scan <key1> <key2>      - Range scan from key1 to key2" << std::endl;
-    std::cout << "  size                    - Show current memtable size" << std::endl;
-    std::cout << "  status                  - Show database status" << std::endl;
-    std::cout << "  help                    - Show this help message" << std::endl;
-    std::cout << "  exit                    - Exit the program" << std::endl;
+    std::cout << "  open <db_name> <size> <type>   - Create a new database with memtable size <size> and type <type> (AVL, Skiplist, etc.)" << std::endl;
+    std::cout << "  open <db_name>                 - Open an existing database and use its saved memtable size and type" << std::endl;
+    std::cout << "      If you specify <size> and <type> for an existing database, its memtable size and type will be overwritten." << std::endl;
+    std::cout << "  close                          - Close current database" << std::endl;
+    std::cout << "  insert <key> <value>           - Insert a key-value pair" << std::endl;
+    std::cout << "  search <key>                   - Search for a key" << std::endl;
+    std::cout << "  scan <key1> <key2>             - Range scan from key1 to key2" << std::endl;
+    std::cout << "  size                           - Show current memtable size" << std::endl;
+    std::cout << "  status                         - Show database status" << std::endl;
+    std::cout << "  help                           - Show this help message" << std::endl;
+    std::cout << "  exit                           - Exit the program" << std::endl;
     std::cout << "===================================" << std::endl;
 }
 
@@ -69,21 +71,46 @@ int main() {
             }
             else if (command == "open") {
                 std::string dbName;
+                int size = 0; // default size
                 if (!(iss >> dbName)) {
                     std::cout << "Error: Please provide a database name" << std::endl;
                     std::cout << "Usage: open <db_name>" << std::endl;
                     continue;
                 }
+                
+                iss >> size;
+                std::string type;
+                iss >> type;
+
+                bool db_exists = FileOperations::directory_exists(dbName);
+
+                if (!db_exists && (size <= 0  || type.empty())) {
+                        std::cout << "Error: Please provide memtable size and type for new database" << std::endl;
+                        std::cout << "Usage: open <db_name> <size> <type>" << std::endl;
+                        continue;
+                }
+                // if (db_exists && size <= 0) {
+                //         size = 1000; // default size for existing database
+                // }
 
                 if (db.is_open()) {
                     std::cout << "Closing current database first..." << std::endl;
                     db.close_database();
                 }
 
-                if (db.open_database(dbName)) {
-                    std::cout << "✓ Database '" << dbName << "' opened successfully" << std::endl;
+                if (db_exists && size == 0) {
+                    if (db.open_database(dbName)) {
+                        std::cout << "Existing database detected. Using saved memtable size." << std::endl;
+                        std::cout << "✓ Database '" << dbName << "' opened successfully" << std::endl;
+                    } else {
+                        std::cout << "✗ Failed to open database '" << dbName << "'" << std::endl;
+                    }
                 } else {
-                    std::cout << "✗ Failed to open database '" << dbName << "'" << std::endl;
+                    if (db.open_database_with_size_type(dbName, size, type.empty() ? "AVL" : type)) {
+                        std::cout << "✓ Database '" << dbName << "' opened successfully" << std::endl;
+                    } else {
+                        std::cout << "✗ Failed to open database '" << dbName << "'" << std::endl;
+                    }
                 }
             }
             else if (command == "close") {

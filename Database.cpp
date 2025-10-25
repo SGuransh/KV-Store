@@ -2,6 +2,7 @@
 #include "Memtable_ds.hpp"
 #include "FileOperations.hpp"
 #include <iostream>
+#include <fstream>
 #include "Database.hpp"
 #include "MemtableFactory.hpp"
 
@@ -53,10 +54,54 @@
         }
     }
 
+    int Database::load_memtable_size_from_config(const std::string& dbName) {
+    std::cout << "Loading memtable size from config for database: " << dbName << std::endl;
+    std::string configPath = dbName + "/config.txt";
+    std::ifstream configFile(configPath);
+    int size = 10; // default fallback
+    if (configFile.is_open()) {
+        std::string line;
+        while (std::getline(configFile, line)) {
+            if (line.find("memtable_size=") == 0) {
+                size = std::stoi(line.substr(14));
+                break;
+            }
+        }
+        configFile.close();
+    }
+    std::cout << "Loaded memtable size: " << size << std::endl;
+    return size;
+}
+
+std::string Database::load_memtable_type_from_config(const std::string& dbName) {
+    std::string configPath = dbName + "/config.txt";
+    std::ifstream configFile(configPath);
+    std::string type = "AVL"; // default fallback
+    if (configFile.is_open()) {
+        std::string line;
+        while (std::getline(configFile, line)) {
+            if (line.find("memtable_type=") == 0) {
+                type = line.substr(14);
+                break;
+            }
+        }
+        configFile.close();
+    }
+    std::cout << "Loaded memtable type: " << type << std::endl;
+    return type;
+}
+
+
 
     bool Database::open_database(const std::string& dbName) {
-        std::cout << "Opening database: " << dbName << std::endl;
 
+        if (FileOperations::directory_exists(dbName)) {
+            int memtableSize = load_memtable_size_from_config(dbName);
+            std::string memtableType = load_memtable_type_from_config(dbName);
+            engine = create_memtable(MemtableType::AVL, memtableSize);
+        }
+
+        std::cout << "Opening database: " << dbName << std::endl;
         if (dbName.empty()) {
             std::cout << "Error: Database name cannot be empty" << std::endl;
             return false;
@@ -99,6 +144,70 @@
         std::cout << "Found " << fileCount << " existing SST files, next file number: " << nextFileNumber << std::endl;
         return true;
     }
+
+    bool Database::open_database_with_size_type(const std::string& dbName, int memtableCapacity, const std::string& memtableType) {
+    std::cout << "Opening database: " << dbName << " with memtable size " << memtableCapacity << " and type " << memtableType << std::endl;
+
+    if (dbName.empty()) {
+        std::cout << "Error: Database name cannot be empty" << std::endl;
+        return false;
+    }
+
+    // Basic validation for invalid characters
+    for (char c : dbName) {
+        if (c == '/' || c == '\\' || c == ':' || c == '*' || c == '?' || 
+            c == '"' || c == '<' || c == '>' || c == '|') {
+            std::cout << "Error: Database name contains invalid characters: " << dbName << std::endl;
+            return false;
+        }
+    }
+
+    databaseName = dbName;
+    databaseDirectory = databaseName;
+
+    // Recreate engine with new memtable size
+    engine = create_memtable(MemtableType::AVL, memtableCapacity);
+
+    if (!FileOperations::create_directory(databaseDirectory)) {
+        std::cout << "Failed to create or access database directory: " << databaseDirectory << std::endl;
+        databaseName.clear();
+        databaseDirectory.clear();
+        return false;
+    }
+
+    int fileCount = FileOperations::count_sst_files(databaseDirectory);
+    nextFileNumber = fileCount + 1;
+    
+    engine->set_next_file_number(nextFileNumber);
+    engine->set_database_directory(databaseDirectory);
+
+    if (!load_incomplete_file()) {
+        std::cout << "Failed to load incomplete data" << std::endl;
+        databaseName.clear();
+        databaseDirectory.clear();
+        return false;
+    }
+
+    isOpen = true;
+    save_memtable_config(memtableCapacity, memtableType);
+    std::cout << "Successfully opened database: " << databaseName << " at directory: " << databaseDirectory << std::endl;
+    std::cout << "Found " << fileCount << " existing SST files, next file number: " << nextFileNumber << std::endl;
+    return true;
+}
+
+void Database::save_memtable_config(int memtableCapacity, const std::string& memtableType) {
+    std::string configPath = databaseDirectory + "/config.txt";
+    std::ofstream configFile(configPath);
+    if (configFile.is_open()) {
+        configFile << "memtable_size=" << memtableCapacity << std::endl;
+        configFile << "memtable_type=" << memtableType << std::endl;
+        configFile.close();
+        std::cout << "Saved memtable size (" << memtableCapacity << ") and type (" << memtableType << ") to config.txt" << std::endl;
+    } else {
+        std::cout << "Failed to save memtable config to config.txt" << std::endl;
+    }
+}
+
 
     bool Database::close_database() {
         std::cout << "Closing database: " << databaseName << std::endl;

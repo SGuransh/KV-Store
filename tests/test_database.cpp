@@ -2,6 +2,7 @@
 #include "../Database.hpp"
 #include <iostream>
 #include <cassert>
+#include <fstream>
 
 int db_tests_passed = 0;
 int db_tests_failed = 0;
@@ -55,6 +56,50 @@ void test_basic_operations() {
     
     cleanup_test_directory("test_db_basic");
 }
+
+void test_open_with_size_type() {
+    std::cout << "\n--- Open Database With Size and Type ---" << std::endl;
+    cleanup_test_directory("test_db_size_type");
+
+    int custom_size = 7;
+    std::string custom_type = "AVL";
+    Database db(1); // Initial size doesn't matter, will be changed on open
+
+    if (db.open_database_with_size_type("test_db_size_type", custom_size, custom_type)) {
+        db_test_passed("Open With Size/Type: Database Open");
+        if (db.get_max_elements() == custom_size) {
+            db_test_passed("Open With Size/Type: Correct Memtable Size");
+        } else {
+            db_test_failed("Open With Size/Type: Correct Memtable Size");
+        }
+        // Check type saved in config
+        std::ifstream configFile("test_db_size_type/config.txt");
+        std::string configLine;
+        bool found_type = false;
+        while (std::getline(configFile, configLine)) {
+            if (configLine.find("memtable_type=") == 0) {
+                std::string type = configLine.substr(14);
+                if (type == custom_type) {
+                    db_test_passed("Open With Size/Type: Correct Memtable Type Saved");
+                    found_type = true;
+                } else {
+                    db_test_failed("Open With Size/Type: Correct Memtable Type Saved");
+                }
+            }
+        }
+        if (!found_type) {
+            db_test_failed("Open With Size/Type: memtable_type in config");
+        }
+        configFile.close();
+    } else {
+        db_test_failed("Open With Size/Type: Database Open");
+    }
+
+    db.close_database();
+    cleanup_test_directory("test_db_size_type");
+}
+
+
 
 void test_sst_operations() {
     std::cout << "\n--- SST File Operations ---" << std::endl;
@@ -265,6 +310,69 @@ void test_file_number_sync() {
     db.close_database();
     cleanup_test_directory("test_db_filenum");
 }
+void test_open_existing_and_config_size() {
+    std::cout << "\n--- Test Open Existing DB and Config Size ---" << std::endl;
+    std::string dbName = "test_db_config";
+    cleanup_test_directory(dbName);
+
+    // Step 1: Create new database with custom size and close it
+    int initial_size = 22;
+    {
+        Database db(initial_size);
+        if (db.open_database_with_size_type(dbName, initial_size, "AVL")) {
+            db_test_passed("Create DB with custom size");
+            if (db.get_max_elements() == initial_size) {
+                db_test_passed("Initial DB memtable size correct");
+            } else {
+                db_test_failed("Initial DB memtable size correct");
+            }
+        } else {
+            db_test_failed("Create DB with custom size");
+        }
+        db.close_database();
+    }
+
+    // Step 2: Open existing database with a different size, should load from config
+    int requested_size = 100; // Should be ignored, config should be used
+    {
+        Database db(requested_size);
+        if (db.open_database_with_size_type(dbName, requested_size, "AVL")) {
+            db_test_passed("Open existing DB with different requested size");
+            int loaded_size = db.get_max_elements();
+            if (loaded_size == requested_size) {
+                db_test_passed("Loaded and updated memtable size from config.txt");
+            } else {
+                db_test_failed("Loaded memtable size from config.txt");
+                std::cout << "Expected: " << initial_size << ", Got: " << loaded_size << std::endl;
+            }
+        } else {
+            db_test_failed("Open existing DB with different requested size");
+        }
+        db.close_database();
+    }
+
+    // Step 3: Check config.txt value
+    std::ifstream configFile(dbName + "/config.txt");
+    std::string configLine;
+    bool found = false;
+    while (std::getline(configFile, configLine)) {
+        if (configLine.find("memtable_size=") == 0) {
+            int config_size = std::stoi(configLine.substr(14));
+            if (config_size == requested_size) {
+                db_test_passed("Config file saved correct memtable size");
+                found = true;
+            } else {
+                db_test_failed("Config file saved correct memtable size");
+            }
+        }
+    }
+    if (!found) {
+        db_test_failed("Config file contains memtable_size");
+    }
+    configFile.close();
+
+    cleanup_test_directory(dbName);
+}
 
 int run_database_tests() {
     std::cout << "\n========== DATABASE TESTS ==========" << std::endl;
@@ -274,6 +382,8 @@ int run_database_tests() {
     test_range_scan();
     test_persistence();
     test_file_number_sync();
+    test_open_with_size_type();
+    test_open_existing_and_config_size();
     
     std::cout << "\n=== DATABASE TEST SUMMARY ===" << std::endl;
     std::cout << "Database Tests Passed: " << db_tests_passed << std::endl;
@@ -281,6 +391,7 @@ int run_database_tests() {
     
     return db_tests_failed;
 }
+
 
 int main() {
     return run_database_tests();
