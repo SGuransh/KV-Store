@@ -20,6 +20,14 @@ public:
     virtual ~EvictionPolicy() = default;
 
     /**
+     * Initialize the eviction policy with the maximum buffer capacity.
+     * This allows the policy to pre-allocate fixed-size data structures.
+     * 
+     * @param maxCapacity Maximum number of pages the buffer can hold
+     */
+    virtual void initialize(std::size_t maxCapacity) = 0;
+
+    /**
      * Select a victim page for eviction when the buffer pool reaches capacity.
      * This method should implement the specific eviction algorithm logic.
      * 

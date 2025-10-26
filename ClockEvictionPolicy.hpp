@@ -14,7 +14,7 @@
  * This algorithm approximates LRU behavior using reference bits and a
  * circular pointer, providing efficient O(1) eviction decisions.
  * 
- * The Clock algorithm maintains a circular list of pages with reference bits.
+ * The Clock algorithm maintains a fixed-size circular array of pages with reference bits.
  * When a page needs to be evicted, the clock hand moves through the pages,
  * giving each page with a reference bit set a "second chance" by clearing
  * the bit. The first page found with a cleared reference bit is selected
@@ -28,13 +28,20 @@ private:
     struct ClockEntry {
         PageID pageId;
         bool referenceBit;
+        bool isValid;  // Whether this slot contains a valid page
         
-        ClockEntry(const PageID& id) : pageId(id), referenceBit(true) {}
+        ClockEntry() : referenceBit(false), isValid(false) {}
+        ClockEntry(const PageID& id) : pageId(id), referenceBit(true), isValid(true) {}
     };
 
-    std::vector<ClockEntry> clockList;           // Circular list of pages
+    std::vector<ClockEntry> clockArray;          // Fixed-size circular array of pages
     std::size_t clockPointer;                    // Current position of clock hand
-    std::unordered_map<std::string, std::size_t> pageIndex; // Maps PageID string to index in clockList
+    std::unordered_map<std::string, std::size_t> pageIndex; // Maps PageID string to index in clockArray
+    
+    std::vector<std::size_t> freeIndices;        // Stack of free indices for O(1) insertion after removal
+    std::size_t fillPointer;                     // Next position to fill when no free indices available
+    std::size_t maxCapacity;                     // Maximum buffer capacity
+    std::size_t currentCount;                    // Current number of valid pages
 
 public:
     /**
@@ -46,6 +53,14 @@ public:
      * Destructor
      */
     virtual ~ClockEvictionPolicy() = default;
+
+    /**
+     * Initialize the eviction policy with the maximum buffer capacity.
+     * Pre-allocates fixed-size data structures for O(1) operations.
+     * 
+     * @param maxCapacity Maximum number of pages the buffer can hold
+     */
+    virtual void initialize(std::size_t maxCapacity) override;
 
     /**
      * Select a victim page for eviction using the Clock algorithm.
@@ -96,19 +111,17 @@ public:
 
 private:
     /**
-     * Helper method to find the index of a page in the clock list
+     * Helper method to get the next available index for insertion
      * 
-     * @param id The PageID to find
-     * @return Index in clockList, or clockList.size() if not found
+     * @return Index where the next page should be inserted
      */
-    std::size_t findPageIndex(const PageID& id) const;
+    std::size_t getNextAvailableIndex();
 
     /**
-     * Helper method to update page indices after removal
-     * 
-     * @param removedIndex The index that was removed
+     * Helper method to move clock pointer to the next valid page
+     * Skips invalid entries in the circular array
      */
-    void updateIndicesAfterRemoval(std::size_t removedIndex);
+    void moveToNextValidPage();
 };
 
 #endif // CLOCKEVICTIONPOLICY_HPP

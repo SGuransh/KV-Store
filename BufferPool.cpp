@@ -16,6 +16,9 @@ BufferPool::BufferPool(std::size_t bufferSize, std::unique_ptr<EvictionPolicy> p
     // Transfer ownership of the eviction policy
     evictionPolicy = std::move(policy);
     
+    // Initialize the eviction policy with buffer capacity
+    evictionPolicy->initialize(bufferSize);
+    
     // Initialize hash table with appropriate number of buckets
     // Use buffer size * 1.3 to maintain good load factor
     std::size_t numBuckets = static_cast<std::size_t>(bufferSize * 1.3);
