@@ -30,7 +30,7 @@ private:
         bool referenceBit;
         bool isValid;  // Whether this slot contains a valid page
         
-        ClockEntry() : referenceBit(false), isValid(false) {}
+        ClockEntry() : pageId("", 0), referenceBit(false), isValid(false) {}
         ClockEntry(const PageID& id) : pageId(id), referenceBit(true), isValid(true) {}
     };
 

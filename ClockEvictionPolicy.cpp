@@ -21,7 +21,9 @@ PageID ClockEvictionPolicy::selectVictim() {
     }
 
     // Ensure we start at a valid page
-    moveToNextValidPage();
+    if (!clockArray[clockPointer].isValid) {
+        moveToNextValidPage();
+    }
     std::size_t startPosition = clockPointer;
     
     // Clock algorithm: sweep until we find a victim
