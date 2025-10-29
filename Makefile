@@ -9,9 +9,30 @@ OUT_DIR = out
 C_DIR = cFiles
 
 # Source files
-SOURCES = $(SRC_DIR)/AVL.cpp $(SRC_DIR)/FileOperations.cpp $(SRC_DIR)/Database.cpp $(SRC_DIR)/PageID.cpp $(SRC_DIR)/Page.cpp $(SRC_DIR)/MurmurHash.cpp $(SRC_DIR)/BucketNode.cpp $(SRC_DIR)/Bucket.cpp $(SRC_DIR)/HashTable.cpp $(SRC_DIR)/BufferPool.cpp $(SRC_DIR)/ClockEvictionPolicy.cpp
-SRC = AVL.cpp FileOperations.cpp Database.cpp PageID.cpp Page.cpp MurmurHash.cpp BucketNode.cpp Bucket.cpp HashTable.cpp BufferPool.cpp ClockEvictionPolicy.cpp
-HEADERS = Memtable_ds.hpp FileOperations.hpp Database.hpp AVL.hpp PageID.hpp Page.hpp MurmurHash.hpp BucketNode.hpp Bucket.hpp HashTable.hpp BufferPool.hpp ClockEvictionPolicy.hpp EvictionPolicy.hpp
+# Core and database sources
+SOURCES = $(SRC_DIR)/AVL.cpp \
+	    $(SRC_DIR)/FileOperations.cpp \
+	    $(SRC_DIR)/Database.cpp \
+	    $(SRC_DIR)/BufferPool/PageID.cpp \
+	    $(SRC_DIR)/BufferPool/Page.cpp \
+	    $(SRC_DIR)/BufferPool/MurmurHash.cpp \
+	    $(SRC_DIR)/BufferPool/BucketNode.cpp \
+	    $(SRC_DIR)/BufferPool/Bucket.cpp \
+	    $(SRC_DIR)/BufferPool/HashTable.cpp \
+	    $(SRC_DIR)/BufferPool/BufferPool.cpp \
+	    $(SRC_DIR)/BufferPool/ClockEvictionPolicy.cpp
+
+# Convenience (unused directly but kept for reference)
+SRC = AVL.cpp FileOperations.cpp Database.cpp \
+	BufferPool/PageID.cpp BufferPool/Page.cpp BufferPool/MurmurHash.cpp \
+	BufferPool/BucketNode.cpp BufferPool/Bucket.cpp BufferPool/HashTable.cpp \
+	BufferPool/BufferPool.cpp BufferPool/ClockEvictionPolicy.cpp
+
+# Header list (for reference/tools)
+HEADERS = Memtable_ds.hpp FileOperations.hpp Database.hpp AVL.hpp \
+	    BufferPool/PageID.hpp BufferPool/Page.hpp BufferPool/MurmurHash.hpp \
+	    BufferPool/BucketNode.hpp BufferPool/Bucket.hpp BufferPool/HashTable.hpp \
+	    BufferPool/BufferPool.hpp BufferPool/ClockEvictionPolicy.hpp BufferPool/EvictionPolicy.hpp
 
 # Test sources
 TEST_SOURCES = $(wildcard $(TEST_DIR)/*.cpp)

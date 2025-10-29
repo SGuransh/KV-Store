@@ -1,7 +1,7 @@
-#include "../BufferPool.hpp"
-#include "../ClockEvictionPolicy.hpp"
-#include "../PageID.hpp"
-#include "../Page.hpp"
+#include "../BufferPool/BufferPool.hpp"
+#include "../BufferPool/ClockEvictionPolicy.hpp"
+#include "../BufferPool/PageID.hpp"
+#include "../BufferPool/Page.hpp"
 #include <iostream>
 #include <string>
 #include <cstring>

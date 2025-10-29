@@ -1,6 +1,6 @@
-#include "../HashTable.hpp"
-#include "../PageID.hpp"
-#include "../Page.hpp"
+#include "../BufferPool/HashTable.hpp"
+#include "../BufferPool/PageID.hpp"
+#include "../BufferPool/Page.hpp"
 #include <iostream>
 #include <string>
 #include <cstring>

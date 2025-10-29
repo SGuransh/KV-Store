@@ -1,5 +1,5 @@
-#include "../ClockEvictionPolicy.hpp"
-#include "../PageID.hpp"
+#include "../BufferPool/ClockEvictionPolicy.hpp"
+#include "../BufferPool/PageID.hpp"
 #include <iostream>
 #include <string>
 #include <vector>
