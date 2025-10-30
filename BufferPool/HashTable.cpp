@@ -3,7 +3,7 @@
 #include <cmath>
 
 HashTable::HashTable(std::size_t numBuckets) 
-    : numBuckets(nextPrime(numBuckets)), currentSize(0) {
+    : numBuckets(nextPowerOfTwo(numBuckets)), currentSize(0) {
     buckets = std::make_unique<Bucket[]>(this->numBuckets);
 }
 
@@ -107,28 +107,22 @@ void HashTable::getStatistics(std::size_t& maxChainLength, double& avgChainLengt
         static_cast<double>(totalChainLength) / static_cast<double>(nonEmptyBuckets) : 0.0;
 }
 
-std::size_t HashTable::nextPrime(std::size_t n) {
-    if (n <= 2) return 2;
-    if (n % 2 == 0) ++n;  // Make it odd
+std::size_t HashTable::nextPowerOfTwo(std::size_t n) {
+    // If n is 0 or 1, return 1
+    if (n <= 1) return 1;
     
-    while (!isPrime(n)) {
-        n += 2;  // Only check odd numbers
-    }
+    // If n is already a power of 2, return n
+    if ((n & (n - 1)) == 0) return n;
+    
+    // Round up to next power of 2 using bit manipulation
+    --n;
+    n |= n >> 1;   // Fill 2 bits
+    n |= n >> 2;   // Fill 4 bits
+    n |= n >> 4;   // Fill 8 bits
+    n |= n >> 8;   // Fill 16 bits
+    n |= n >> 16;  // Fill 32 bits
+    n |= n >> 32;  // Fill 64 bits (for 64-bit size_t)
+    ++n;
     
     return n;
-}
-
-bool HashTable::isPrime(std::size_t n) {
-    if (n <= 1) return false;
-    if (n <= 3) return true;
-    if (n % 2 == 0 || n % 3 == 0) return false;
-    
-    // Check for divisors from 5 to sqrt(n)
-    for (std::size_t i = 5; i * i <= n; i += 6) {
-        if (n % i == 0 || n % (i + 2) == 0) {
-            return false;
-        }
-    }
-    
-    return true;
 }

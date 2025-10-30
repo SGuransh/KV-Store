@@ -35,10 +35,10 @@ private:
     };
 
     std::vector<ClockEntry> clockArray;          // Fixed-size circular array of pages
-    std::size_t clockPointer;                    // Current position of clock hand
+    std::vector<std::size_t> freeIndices;        // Stack of free indices for O(1) insertion after removal
     std::unordered_map<std::string, std::size_t> pageIndex; // Maps PageID string to index in clockArray
     
-    std::vector<std::size_t> freeIndices;        // Stack of free indices for O(1) insertion after removal
+    std::size_t clockPointer;                    // Current position of clock hand
     std::size_t fillPointer;                     // Next position to fill when no free indices available
     std::size_t maxCapacity;                     // Maximum buffer capacity
     std::size_t currentCount;                    // Current number of valid pages

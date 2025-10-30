@@ -24,18 +24,11 @@ private:
     std::size_t currentSize;            // Current number of pages stored
 
     /**
-     * Helper method to find the next prime number greater than or equal to n
+     * Helper method to find the next power of two greater than or equal to n
      * @param n The starting number
-     * @return The next prime number >= n
+     * @return The next power of two >= n
      */
-    static std::size_t nextPrime(std::size_t n);
-
-    /**
-     * Helper method to check if a number is prime
-     * @param n The number to check
-     * @return true if n is prime, false otherwise
-     */
-    static bool isPrime(std::size_t n);
+    static std::size_t nextPowerOfTwo(std::size_t n);
 
 public:
     /**

@@ -116,21 +116,7 @@ bool BufferPool::evictPage() {
     try {
         // Select victim page using eviction policy
         PageID victimId = evictionPolicy->selectVictim();
-        
-        // Remove from hash table
-        bool removed = table->remove(victimId);
-        if (!removed) {
-            // This should not happen - eviction policy and hash table are out of sync
-            return false;
-        }
-        
-        // Remove from eviction policy tracking
-        evictionPolicy->recordRemoval(victimId);
-        
-        // Update size
-        --currentSize;
-        
-        return true;
+        return removePage(victimId);
     } catch (const std::exception&) {
         // Eviction failed (e.g., no pages to evict)
         return false;
