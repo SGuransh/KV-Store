@@ -47,19 +47,16 @@ bool FileOperations::file_exists(const std::string& fileName) {
 
 std::vector<std::pair<int, int>> FileOperations::read_sst_file(const std::string& filePath) {
     std::vector<std::pair<int, int>> content;
-    std::ifstream file(filePath);
+    std::ifstream file(filePath, std::ios::binary);
     if (!file.is_open()) {
         std::cout << "Failed to open file: " << filePath << std::endl;
         return content;
     }
     
-    std::string line;
-    while (std::getline(file, line)) {
-        std::istringstream iss(line);
-        int key, value;
-        if (iss >> key >> value) {
-            content.push_back({key, value});
-        }
+   int key, value;
+    while (file.read(reinterpret_cast<char*>(&key), sizeof(int)) &&
+           file.read(reinterpret_cast<char*>(&value), sizeof(int))) {
+        content.push_back({key, value});
     }
     file.close();
     return content;
@@ -74,15 +71,16 @@ bool FileOperations::write_sst_file(const std::vector<std::pair<int, int>>& data
         // Choose write path based on atomic flag
         std::string writePath = isAtomic ? tempPath : actualPath;
         
-        std::ofstream file(writePath);
+        std::ofstream file(writePath, std::ios::binary);
         if (!file.is_open()) {
             std::cout << "Failed to create SST file: " << writePath << std::endl;
             return false;
         }
 
         // Write data in simple text format: "key value" per line
-        for (const auto& pair : data) {
-            file << pair.first << " " << pair.second << "\n";
+          for (const auto& pair : data) {
+            file.write(reinterpret_cast<const char*>(&pair.first), sizeof(int));
+            file.write(reinterpret_cast<const char*>(&pair.second), sizeof(int));
         }
 
         file.close();
