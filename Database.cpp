@@ -91,14 +91,19 @@ std::string Database::load_memtable_type_from_config(const std::string& dbName) 
     return type;
 }
 
-
+MemtableType parse_memtable_type(const std::string& typeStr) {
+    if (typeStr == "AVL") return MemtableType::AVL;
+    if (typeStr == "BTREE") return MemtableType::BTREE;
+    // Default/fallback
+    return MemtableType::AVL;
+}
 
     bool Database::open_database(const std::string& dbName) {
 
         if (FileOperations::directory_exists(dbName)) {
             int memtableSize = load_memtable_size_from_config(dbName);
             std::string memtableType = load_memtable_type_from_config(dbName);
-            engine = create_memtable(MemtableType::AVL, memtableSize);
+            engine = create_memtable(parse_memtable_type(memtableType), memtableSize);
         }
 
         std::cout << "Opening database: " << dbName << std::endl;
@@ -148,6 +153,15 @@ std::string Database::load_memtable_type_from_config(const std::string& dbName) 
     bool Database::open_database_with_size_type(const std::string& dbName, int memtableCapacity, const std::string& memtableType) {
     std::cout << "Opening database: " << dbName << " with memtable size " << memtableCapacity << " and type " << memtableType << std::endl;
 
+    if (FileOperations::directory_exists(dbName)) {
+        std::cout << "Database '" << dbName << "' already exists. Opening existing database." << std::endl;
+        return open_database(dbName);
+    }
+
+    if(!FileOperations::directory_exists(dbName)) {
+        std::cout << "Database does not exist. Creating new database directory." << std::endl;
+    }
+
     if (dbName.empty()) {
         std::cout << "Error: Database name cannot be empty" << std::endl;
         return false;
@@ -164,9 +178,10 @@ std::string Database::load_memtable_type_from_config(const std::string& dbName) 
 
     databaseName = dbName;
     databaseDirectory = databaseName;
+    
 
-    // Recreate engine with new memtable size
-    engine = create_memtable(MemtableType::AVL, memtableCapacity);
+    MemtableType type = parse_memtable_type(memtableType);
+    engine = create_memtable(type, memtableCapacity);
 
     if (!FileOperations::create_directory(databaseDirectory)) {
         std::cout << "Failed to create or access database directory: " << databaseDirectory << std::endl;

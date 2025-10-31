@@ -7,9 +7,9 @@
 
 void printHelp() {
     std::cout << "\n=== KV-Store Database Commands ===" << std::endl;
-    std::cout << "  open <db_name> <size> <type>   - Create a new database with memtable size <size> and type <type> (AVL, Skiplist, etc.)" << std::endl;
+    std::cout << "  open <db_name> <size> <memtable_type>   - Create a new database with memtable size <size> and type <memtable_type> (AVL, BTREE, etc.)" << std::endl;
     std::cout << "  open <db_name>                 - Open an existing database and use its saved memtable size and type" << std::endl;
-    std::cout << "      If you specify <size> and <type> for an existing database, its memtable size and type will be overwritten." << std::endl;
+    std::cout << "      If you specify <size> and <memtable_type> for an existing database, its memtable size and type will be overwritten." << std::endl;
     std::cout << "  close                          - Close current database" << std::endl;
     std::cout << "  insert <key> <value>           - Insert a key-value pair" << std::endl;
     std::cout << "  search <key>                   - Search for a key" << std::endl;
@@ -79,15 +79,20 @@ int main() {
                 }
                 
                 iss >> size;
-                std::string type;
-                iss >> type;
+                std::string memtableType;
+                iss >> memtableType;
 
                 bool db_exists = FileOperations::directory_exists(dbName);
 
-                if (!db_exists && (size <= 0  || type.empty())) {
+                if (!db_exists && (size <= 0  || memtableType.empty() || (memtableType != "AVL" && memtableType != "BTREE"))) {
                         std::cout << "Error: Please provide memtable size and type for new database" << std::endl;
-                        std::cout << "Usage: open <db_name> <size> <type>" << std::endl;
+                        std::cout << "Usage: open <db_name> <size> <memtable_type>" << std::endl;
+                        std::cout << "Supported memtable types: AVL, BTREE" << std::endl;
                         continue;
+                }else {
+                    if (db_exists) {
+                        std::cout << "Database '" << dbName << "' already exists. Opening existing database." << std::endl;
+                    }
                 }
                 // if (db_exists && size <= 0) {
                 //         size = 1000; // default size for existing database
@@ -98,7 +103,15 @@ int main() {
                     db.close_database();
                 }
 
-                if (db_exists && size == 0) {
+                // if (db.open_database_with_size_type(dbName, size > 0 ? size : db.load_memtable_size_from_config(dbName), 
+                //         type.empty() ? db.load_memtable_type_from_config(dbName) : type)) {
+                //     std::cout << "✓ Database '" << dbName << "' opened successfully" << std::endl;
+                // } else {
+                //     std::cout << "✗ Failed to open database '" << dbName << "'" << std::endl;
+                // }
+                
+
+                if (db_exists) {
                     if (db.open_database(dbName)) {
                         std::cout << "Existing database detected. Using saved memtable size." << std::endl;
                         std::cout << "✓ Database '" << dbName << "' opened successfully" << std::endl;
@@ -106,7 +119,7 @@ int main() {
                         std::cout << "✗ Failed to open database '" << dbName << "'" << std::endl;
                     }
                 } else {
-                    if (db.open_database_with_size_type(dbName, size, type.empty() ? "AVL" : type)) {
+                    if (db.open_database_with_size_type(dbName, size, memtableType)) {
                         std::cout << "✓ Database '" << dbName << "' opened successfully" << std::endl;
                     } else {
                         std::cout << "✗ Failed to open database '" << dbName << "'" << std::endl;

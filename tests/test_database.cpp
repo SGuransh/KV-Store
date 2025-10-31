@@ -339,7 +339,7 @@ void test_open_existing_and_config_size() {
         if (db.open_database_with_size_type(dbName, requested_size, "AVL")) {
             db_test_passed("Open existing DB with different requested size");
             int loaded_size = db.get_max_elements();
-            if (loaded_size == requested_size) {
+            if (loaded_size == initial_size) {
                 db_test_passed("Loaded and updated memtable size from config.txt");
             } else {
                 db_test_failed("Loaded memtable size from config.txt");
@@ -358,7 +358,7 @@ void test_open_existing_and_config_size() {
     while (std::getline(configFile, configLine)) {
         if (configLine.find("memtable_size=") == 0) {
             int config_size = std::stoi(configLine.substr(14));
-            if (config_size == requested_size) {
+            if (config_size == initial_size) {
                 db_test_passed("Config file saved correct memtable size");
                 found = true;
             } else {
