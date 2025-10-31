@@ -25,6 +25,11 @@ public:
     ~Database();
 
     bool open_database(const std::string& dbName);
+    bool open_database_with_size_type(const std::string& dbName, int memtableCapacity, const std::string& memtableType = "AVL");
+    void save_memtable_size_config(int memtableCapacity);
+    int load_memtable_size_from_config(const std::string& dbName);
+    void save_memtable_config(int memtableCapacity, const std::string& memtableType);
+    std::string load_memtable_type_from_config(const std::string& dbName);
     bool close_database();
 
     bool insert(int key, int value);
