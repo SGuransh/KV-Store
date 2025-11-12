@@ -7,6 +7,25 @@
 #include <cstring>
 #include "../Page/Page.hpp"
 
+// Maximum allowed tree height (internal levels + leaf level). Adjust if deeper trees are needed.
+constexpr uint32_t MAX_TREE_HEIGHT = 8;
+
+// Helper functions to calculate node capacities dynamically.
+namespace BTreeCapacity {
+    constexpr uint32_t getMaxLeafPairs() {
+        return Page::PAGE_SIZE / (sizeof(int32_t) * 2);
+    }
+
+    constexpr uint32_t getMaxInternalKeys() {
+        return Page::PAGE_SIZE / sizeof(int32_t);
+    }
+}
+
+// Global constants for convenience.
+constexpr uint32_t MAX_LEAF_PAIRS = BTreeCapacity::getMaxLeafPairs();
+constexpr uint32_t MAX_INTERNAL_KEYS = BTreeCapacity::getMaxInternalKeys();
+constexpr uint32_t MAX_INTERNAL_CHILDREN = MAX_INTERNAL_KEYS + 1;
+
 /**
  * Metadata page - stored at page 0 of every SST file
  * Contains information about the B-Tree structure
@@ -27,9 +46,9 @@ struct MetadataPage {
     
     static constexpr uint32_t MAGIC_NUMBER = 0xB7EE0000;
     
-    MetadataPage() 
-        : magic(MAGIC_NUMBER), rootPageId(0), treeHeight(0), 
-          leafCount(0), lastLeafPairs(0), keyCount(0), 
+        MetadataPage() 
+                : magic(MAGIC_NUMBER), rootPageId(0), treeHeight(0), 
+                    leafCount(0), lastLeafPairs(0), 
           minKey(0), maxKey(0) {
         std::memset(nodesPerLevel, 0, sizeof(nodesPerLevel));
         std::memset(lastNodeKeys, 0, sizeof(lastNodeKeys));
@@ -130,34 +149,6 @@ struct MetadataPage {
  * 
  * Example (4096 bytes): 4096 / 4 = 1024 keys, 1025 children
  */
-
-/**
- * Helper functions to calculate node capacities dynamically
- */
-namespace BTreeCapacity {
-    /**
-     * Calculate maximum key-value pairs that fit in a leaf node
-     * Leaf nodes have no metadata, just pure key-value pairs
-     * @return Maximum number of key-value pairs per leaf
-     */
-    constexpr uint32_t getMaxLeafPairs() {
-        return Page::PAGE_SIZE / (sizeof(int32_t) * 2);  // PAGE_SIZE / 8
-    }
-    
-    /**
-     * Calculate maximum keys that fit in an internal node
-     * Internal node overhead: 0 bytes (no metadata, just keys)
-     * @return Maximum number of keys per internal node
-     */
-    constexpr uint32_t getMaxInternalKeys() {
-        return Page::PAGE_SIZE / sizeof(int32_t);  // Full page of keys
-    }
-}
-
-// Global constants for convenience
-constexpr uint32_t MAX_LEAF_PAIRS = BTreeCapacity::getMaxLeafPairs();
-constexpr uint32_t MAX_INTERNAL_KEYS = BTreeCapacity::getMaxInternalKeys();
-constexpr uint32_t MAX_INTERNAL_CHILDREN = MAX_INTERNAL_KEYS + 1;
 
 /**
  * Leaf node - contains actual key-value pairs (OPTIMIZED - No metadata)
