@@ -7,10 +7,7 @@
 /**
  * Main entry point: Build B-Tree SST from sorted data and write to disk
  */
-    std::cout << "Building internal levels bottom-up..." << std::endl;
-
-    // Step 1: Maintain a dynamic array of max-values to be processed
-    std::vector<int32_t> currentLevel(max_per_node, max_per_node + ctx.leafNodeCount);BTreeSST::buildBTree(const std::vector<std::pair<int, int>>& sortedData, const std::string& fileName) {
+bool BTreeSST::buildBTree(const std::vector<std::pair<int, int>>& sortedData, const std::string& fileName) {
     if (sortedData.empty()) {
         std::cerr << "Error: Cannot build B-Tree from empty data" << std::endl;
         return false;
@@ -161,101 +158,85 @@ int32_t* BTreeSST::buildLeafNodes(BuildContext& ctx, const std::vector<std::pair
  * OPTIMIZED: Read largest keys from disk instead of memory
  */
 void BTreeSST::buildInternalLevels(BuildContext& ctx, const int32_t* max_per_node) {
-    """
-    Input: 
-        - max_per_node: Array of maximum keys in each leaf node
-    Algorithm:
-        1. Maintain a dynamic array of max-values to be processed, and the corresponding number of internal nodes for that level.
-        2. Extract every Bth value in max array and keep it for future level. Now, for the current internal level,
-            keep the first B-1 values and ignore the Bth value.
-            For the last internal node, if there are X values, then keep X - 1 (possibly 0).
-        3. Make an array of internal nodes stored contiguously of size (ctx.totalInternalNodes)
-        4. for i in range(ctx.internalLevelCount) reverse iteration [2, 1, 0]:
-            - Compute the internal nodes for level i using the max values from the previous level
-            - Compute offset as sum(ctx.internalLevelSizes[0:i) exclusive) store it there
-        5. Flush it to the file with the offset Page::Size, use pwrite and ctx.fd
-    """
-    """
-        DRY RUN: B = 4
-        - max_per_node = [3, 6, 9, 12, 15, 18, 21, 24, 27, 30, 33, 36, 39, 42, 45, 48, 51, 54, 57, 60]
-
-        3, 6, 9, *(12), 15, 18, 21, *(24), 27, 30, 33, *(36), 39, 42, 45, *(48), 51, 54, 57, *(60)
-
-        (3,6,9) (15, 18, 21) (27,30,33) (39,42,45) (51,54,57)
-
-        12, 24, 36, 48, 60
-
-
-        max_per_node = [12, 24, 36, 48, 60]
-
-        12, 24, 36, *(48), 60
-
-        (12, 24, 36) ()
-
-        48
-        
-        max_per_node = [48]
-    """
+    /*
+     * Input: 
+     *   - max_per_node: Array of maximum keys in each leaf node
+     * Algorithm:
+     *   1. Maintain a dynamic array of max-values to be processed for the current level.
+     *   2. Group values by the B-tree fan-out (MAX_INTERNAL_CHILDREN) to populate internal nodes.
+     *      The last node in a level may have fewer children; we store X - 1 keys when X children
+     *      produce X maxima.
+     *   3. Keep all internal nodes in a contiguous buffer sized by ctx.totalInternalNodes.
+     *   4. Iterate levels bottom-up, computing offsets using ctx.internalLevelSizes so that pages
+     *      are laid out level by level.
+     *   5. Flush the contiguous buffer to disk starting at Page::PAGE_SIZE via pwrite and ctx.fd.
+     *
+     * Dry run example (B = 4):
+     * 3 6 9 12 15 18 21 24 27 30 33 36 39 42 45 48 51 54 57 60
+     * (3,6,9) (15, 18, 21) (27,30,33) (39,42,45) (51,54,57)
+     * (12, 24, 36) ()
+     * (48)
+     */
     std::cout << "Building internal levels bottom-up..." << std::endl;
 
-    // Step 1: Maintain a dynamic array of max-values to be processed
+    // Maintain a dynamic array of max-values to be processed
     std::vector<int32_t> currentLevel(max_per_node, max_per_node + ctx.leafNodeCount);
-    // current_level = std::vector<int32_t>(max_per_node, max_per_node + ctx.leafNodeCount);
     
-    // Step 3: Allocate contiguous array for all internal nodes
+    // Allocate contiguous array for all internal nodes
     int32_t* allInternalNodes = new int32_t[ctx.totalInternalNodes * MAX_INTERNAL_KEYS];
     std::memset(allInternalNodes, 0, ctx.totalInternalNodes * MAX_INTERNAL_KEYS * sizeof(int32_t));
-    
-    // Step 4: Build each internal level bottom-up (reverse iteration)
-    //! Change this offset by Page::PAGE_SIZE after writing the keys for each node
-    size_t writeOffset = 0;  // Offset in allInternalNodes array
 
-    for (size_t levelIdx = ctx.internalLevelCount - 1; levelIdx >= 0; levelIdx--) {
-        //! Reverse iteration
-        size_t numNodesInLevel = ctx.internalLevelSizes[levelIdx];   // 5
+    // Define next write index to compute the start offset for each level
+    size_t nextWriteIndex = ctx.totalInternalNodes;
+
+    // Iterate across required number of internal levels
+    for (size_t levelIdx = 0; levelIdx < ctx.internalLevelCount; ++levelIdx) {
+        size_t numNodesInLevel = ctx.internalLevelSizes[levelIdx];
+        size_t levelStartIndex = nextWriteIndex - numNodesInLevel;
         std::vector<int32_t> nextLevel;
-        
-        std::cout << "  Building internal level " << levelIdx 
-                  << " (" << numNodesInLevel << " nodes)" << std::endl;
-        
-        // Step 2: Extract every Bth value for next level, keep B-1 values for current level
-        size_t currentLevelSize = currentLevel.size();   
+        nextLevel.reserve(numNodesInLevel);
+        const size_t currentLevelSize = currentLevel.size();
         size_t srcIdx = 0;
-        
-        for (size_t nodeIdx = 0; nodeIdx < numNodesInLevel; nodeIdx++) {
-            size_t keysInThisNode = MAX_INTERNAL_KEYS;
-            
-            // Check if this is the last node in this level
-            if (nodeIdx == numNodesInLevel - 1) {
-                // Last node - might have fewer keys
-                // Already have this value in ctx.lastNodeKeys
-                size_t remainingChildren = currentLevelSize - srcIdx;
-                if (remainingChildren > 0) {
-                    keysInThisNode = remainingChildren - 1;  // X - 1 keys for X children
-                } else {
-                    keysInThisNode = 0;
+
+        std::cout << "  Building internal level " << levelIdx
+                  << " (" << numNodesInLevel << " nodes)" << std::endl;
+
+        for (size_t nodeIdx = 0; nodeIdx < numNodesInLevel && srcIdx < currentLevelSize; ++nodeIdx) {
+            const size_t nodeOffset = (levelStartIndex + nodeIdx) * MAX_INTERNAL_KEYS;
+            const size_t remaining = currentLevelSize - srcIdx;
+
+            if (remaining == 0) {
+                std::cerr << "Warning: empty internal node at level " << levelIdx << std::endl;
+                break;
+            }
+
+            size_t keysForNode = 0;
+
+            if (remaining >= MAX_INTERNAL_CHILDREN) {
+                keysForNode = MAX_INTERNAL_CHILDREN - 1;
+                for (size_t keyIdx = 0; keyIdx < keysForNode; ++keyIdx) {
+                    allInternalNodes[nodeOffset + keyIdx] = currentLevel[srcIdx + keyIdx];
                 }
-            }
-            
-            // Copy keys for this internal node
-            for (size_t keyIdx = 0; keyIdx < keysInThisNode; keyIdx++) {
-                if (srcIdx < currentLevelSize) {
-                    allInternalNodes[writeOffset * MAX_INTERNAL_KEYS + keyIdx] = currentLevel[srcIdx];
-                    srcIdx++;
+                nextLevel.push_back(currentLevel[srcIdx + keysForNode]);
+                srcIdx += MAX_INTERNAL_CHILDREN;
+            } else {
+                keysForNode = (remaining > 0) ? remaining - 1 : 0;
+                for (size_t keyIdx = 0; keyIdx < keysForNode; ++keyIdx) {
+                    allInternalNodes[nodeOffset + keyIdx] = currentLevel[srcIdx + keyIdx];
                 }
+                if (remaining > 0) {
+                    nextLevel.push_back(currentLevel[srcIdx + keysForNode]);
+                }
+                srcIdx = currentLevelSize;
             }
-            
-            // Extract the Bth value (largest key) for next level
-            if (srcIdx < currentLevelSize) {
-                nextLevel.push_back(currentLevel[srcIdx]);
-                srcIdx++;
-            }
-            
-            writeOffset++;
         }
-        
-        // Move to next level
-        currentLevel = nextLevel;
+
+        if (srcIdx != currentLevelSize) {
+            std::cerr << "Warning: leftover maxima while building level " << levelIdx << std::endl;
+        }
+
+        currentLevel = std::move(nextLevel);
+        nextWriteIndex = levelStartIndex;
     }
     
     // Step 5: Flush all internal nodes to disk at offset Page::PAGE_SIZE
@@ -276,20 +257,18 @@ void BTreeSST::buildInternalLevels(BuildContext& ctx, const int32_t* max_per_nod
 }
 
 bool BTreeSST::writeMetadata(BuildContext& ctx) {
-    """
-    Input:
-        - ctx: Build context with complete tree
-    Algorithm:
-        1. Make a MetadataPage object and populate its fields from ctx
-        2. Serialize it to a Page object
-        3. Write the Page to disk at page ID 0
-    """
+    /*
+     * Input:
+     *   - ctx: Build context with the completed tree metadata
+     * Algorithm:
+     *   1. Populate a MetadataPage struct from ctx.
+     *   2. Serialize it into a Page buffer.
+     *   3. Write the buffer to disk at page 0.
+     */
     MetadataPage metadataPage;
     metadataPage.minKey = ctx.minKey;
     metadataPage.maxKey = ctx.maxKey;
     metadataPage.treeHeight = ctx.treeHeight;
-    metadataPage.internalLevelCount = ctx.internalLevelCount;
-    metadataPage.totalInternalNodes = ctx.totalInternalNodes;
 
     Page page;
     if (!page.serialize(metadataPage)) {

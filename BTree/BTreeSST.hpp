@@ -89,85 +89,32 @@ public:
      */
     bool buildBTree(const std::vector<std::pair<int, int>>& sortedData, const std::string& fileName);
     
-    // /**
-    //  * Point query - find value for a given key
-    //  * @param key The key to search for
-    //  * @param value Output parameter for the value
-    //  * @param fileName The SST file to query
-    //  * @param useBTreeSearch If true, use B-Tree traversal; if false, use binary search
-    //  * @return true if key found, false otherwise
-    //  */
-    // bool get(int key, int& value, const std::string& fileName, bool useBTreeSearch = true);
+    /**
+     * Point query - find value for a given key
+     * @param key The key to search for
+     * @param value Output parameter for the value
+     * @param fileName The SST file to query
+     * @param useBTreeSearch If true, use B-Tree traversal; if false, use binary search
+     * @return true if key found, false otherwise
+     */
+    bool get(int key, int& value, const std::string& fileName, bool useBTreeSearch = true);
     
-    // /**
-    //  * Range scan - find all key-value pairs in range [key1, key2]
-    //  * @param key1 Start of range (inclusive)
-    //  * @param key2 End of range (inclusive)
-    //  * @param fileName The SST file to scan
-    //  * @param useBTreeSearch If true, use B-Tree traversal; if false, scan all leaves
-    //  * @return Vector of key-value pairs in range
-    //  */
-    // std::vector<std::pair<int, int>> scan(int key1, int key2, const std::string& fileName, bool useBTreeSearch = true);
+    /**
+     * Range scan - find all key-value pairs in range [key1, key2]
+     * @param key1 Start of range (inclusive)
+     * @param key2 End of range (inclusive)
+     * @param fileName The SST file to scan
+     * @param useBTreeSearch If true, use B-Tree traversal; if false, scan all leaves
+     * @return Vector of key-value pairs in range
+     */
+    std::vector<std::pair<int, int>> scan(int key1, int key2, const std::string& fileName, bool useBTreeSearch = true);
     
-    // /**
-    //  * Convert SST to sorted array of key-value pairs
-    //  * @param fileName The SST file to read
-    //  * @return Vector of all key-value pairs in sorted order
-    //  */
-    // std::vector<std::pair<int, int>> toSortedArray(const std::string& fileName);
-    
-// private:
-    // === File Operations ===
-    
-//     /**
-//      * Read metadata from SST file
-//      * @param fileName The SST file to read
-//      * @param metadata Output parameter for metadata
-//      * @return true if successful, false otherwise
-//      */
-//     bool readMetadata(const std::string& fileName, MetadataPage& metadata) const;
-    
-//     /**
-//      * Read a page from disk using pread
-//      * @param fileName The SST file to read
-//      * @param pageId The page ID to read
-//      * @param page Output parameter for the page data
-//      * @return true if successful, false otherwise
-//      */
-//     bool readPage(const std::string& fileName, uint32_t pageId, Page& page) const;
-    
-//     /**
-//      * Write a single page to disk at specified page ID
-//      * @param fd File descriptor (kept open during bulk write operations)
-//      * @param pageId The page ID to write to
-//      * @param page The page data to write
-//      * @return true if successful, false otherwise
-//      */
-//     bool writePage(int fd, uint32_t pageId, const Page& page) const;
-    
-//     // === Query Operations ===
-    
-//     /**
-//      * B-Tree search mode - traverse from root to leaf
-//      * @param key The key to search for
-//      * @param value Output parameter for the value
-//      * @param fileName The SST file to query
-//      * @param metadata The metadata for this SST
-//      * @return true if found, false otherwise
-//      */
-//     bool getBTreeSearch(int key, int& value, const std::string& fileName, const MetadataPage& metadata);
-    
-//     /**
-//      * Binary search mode - search directly on leaf pages
-//      * @param key The key to search for
-//      * @param value Output parameter for the value
-//      * @param fileName The SST file to query
-//      * @param metadata The metadata for this SST
-//      * @return true if found, false otherwise
-//      */
-//     bool getBinarySearch(int key, int& value, const std::string& fileName, const MetadataPage& metadata);
-    
-//     // === Builder Operations ===
+    /**
+     * Convert SST to sorted array of key-value pairs
+     * @param fileName The SST file to read
+     * @return Vector of all key-value pairs in sorted order
+     */
+    std::vector<std::pair<int, int>> toSortedArray(const std::string& fileName);
     
     /**
      * Calculate required array sizes based on input data size and allocate
@@ -198,6 +145,57 @@ public:
      * @return true if successful, false otherwise
      */
     bool writeMetadata(BuildContext& ctx);
+
+private:
+    // === File Operations ===
+    
+    /**
+     * Read metadata from SST file
+     * @param fileName The SST file to read
+     * @param metadata Output parameter for metadata
+     * @return true if successful, false otherwise
+     */
+    bool readMetadata(const std::string& fileName, MetadataPage& metadata) const;
+    
+    /**
+     * Read a page from disk using pread
+     * @param fileName The SST file to read
+     * @param pageId The page ID to read
+     * @param page Output parameter for the page data
+     * @return true if successful, false otherwise
+     */
+    bool readPage(const std::string& fileName, uint32_t pageId, Page& page) const;
+    
+    /**
+     * Write a single page to disk at specified page ID
+     * @param fd File descriptor (kept open during bulk write operations)
+     * @param pageId The page ID to write to
+     * @param page The page data to write
+     * @return true if successful, false otherwise
+     */
+    bool writePage(int fd, uint32_t pageId, const Page& page) const;
+    
+    // === Query Operations ===
+    
+    /**
+     * B-Tree search mode - traverse from root to leaf
+     * @param key The key to search for
+     * @param value Output parameter for the value
+     * @param fileName The SST file to query
+     * @param metadata The metadata for this SST
+     * @return true if found, false otherwise
+     */
+    bool getBTreeSearch(int key, int& value, const std::string& fileName, const MetadataPage& metadata);
+    
+    /**
+     * Binary search mode - search directly on leaf pages
+     * @param key The key to search for
+     * @param value Output parameter for the value
+     * @param fileName The SST file to query
+     * @param metadata The metadata for this SST
+     * @return true if found, false otherwise
+     */
+    bool getBinarySearch(int key, int& value, const std::string& fileName, const MetadataPage& metadata);
 };
 
 #endif // BTREESST_HPP
