@@ -13,6 +13,9 @@ C_DIR = cFiles
 SOURCES = $(SRC_DIR)/AVL.cpp \
 	    $(SRC_DIR)/FileOperations.cpp \
 	    $(SRC_DIR)/Database.cpp \
+	    $(SRC_DIR)/LSM/LSMTree.cpp \
+	    $(SRC_DIR)/LSM/MergeBuffer.cpp \
+	    $(SRC_DIR)/BTree/BTreeSST.cpp \
 	    $(SRC_DIR)/BufferPool/PageID.cpp \
 	    $(SRC_DIR)/BufferPool/Page.cpp \
 	    $(SRC_DIR)/BufferPool/MurmurHash.cpp \

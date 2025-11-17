@@ -7,7 +7,7 @@
 #include <vector>
 #include <cstdint>
 #include "BTreeNode.hpp"
-#include "../Page/Page.hpp"
+#include "../BufferPool/Page.hpp"
 
 #ifdef _WIN32
 #include <io.h>
@@ -30,13 +30,14 @@ struct BuildContext {
     int32_t minKey;          // Smallest key in the SST (for range filtering)
     int32_t maxKey;          // Largest key in the SST (for range filtering)
     uint32_t treeHeight;     // Height of the B-Tree (number of internal levels + 1 for leaves)
+    uint32_t lastLeafPairs;  // Number of pairs in the last leaf
 
     uint32_t* nodesPerLevel;     // Number of nodes at each level
     uint32_t* lastNodeKeys;      // Number of keys/pairs in last node at each level
     
     BuildContext(const std::string& fname) 
         : fileName(fname), fd(-1), leafNodeCount(0), internalLevelSizes(nullptr), internalLevelCount(0), totalInternalNodes(0),
-          nodesPerLevel(nullptr), lastNodeKeys(nullptr) {}
+          lastLeafPairs(0), nodesPerLevel(nullptr), lastNodeKeys(nullptr) {}
 
     ~BuildContext() {
         cleanup();

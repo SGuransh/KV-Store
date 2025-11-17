@@ -5,7 +5,7 @@
 
 #include <cstdint>
 #include <cstring>
-#include "../Page/Page.hpp"
+#include "../BufferPool/Page.hpp"
 
 // Maximum allowed tree height (internal levels + leaf level). Adjust if deeper trees are needed.
 constexpr uint32_t MAX_TREE_HEIGHT = 8;
