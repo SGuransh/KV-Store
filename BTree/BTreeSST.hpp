@@ -145,6 +145,7 @@ public:
      * @return true if successful, false otherwise
      */
     bool writeMetadata(BuildContext& ctx);
+    bool getBTreeSearch(int32_t key, int& value, const std::string& filename, const MetadataPage& metadata);
 
 private:
     // === File Operations ===
@@ -185,8 +186,6 @@ private:
      * @param metadata The metadata for this SST
      * @return true if found, false otherwise
      */
-    bool getBTreeSearch(int key, int& value, const std::string& fileName, const MetadataPage& metadata);
-    
     /**
      * Binary search mode - search directly on leaf pages
      * @param key The key to search for

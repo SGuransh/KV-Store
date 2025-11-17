@@ -3,6 +3,7 @@
 #include <unistd.h>
 #include <iostream>
 #include <algorithm>
+#include <vector>
 
 /**
  * Main entry point: Build B-Tree SST from sorted data and write to disk
@@ -360,12 +361,116 @@ bool BTreeSST::get(int key, int& value, const std::string& fileName, bool useBTr
  * B-Tree search: traverse from root to leaf
  */
 bool BTreeSST::getBTreeSearch(int key, int& value, const std::string& fileName, const MetadataPage& metadata) {
-    // TODO: Implement in next phase
-    std::cerr << "B-Tree search not yet implemented" << std::endl;
-    return false;
+    // Range check first
+    if (key < metadata.minKey || key > metadata.maxKey) {
+        return false;
+    }
+    
+    // Special case: if tree height is 1, root is a leaf
+    if (metadata.treeHeight == 1) {
+        // For single leaf case, read the leaf data directly
+        // The data starts at offset (1 + totalInternalNodes) * PAGE_SIZE
+        uint32_t totalInternalNodes = 0;
+        if (metadata.treeHeight > 1) {
+            size_t currentLevel = metadata.leafCount;
+            while (currentLevel > 1) {
+                currentLevel = (currentLevel + MAX_INTERNAL_CHILDREN - 1) / MAX_INTERNAL_CHILDREN;
+                totalInternalNodes += currentLevel;
+            }
+        }
+        
+        // Read the raw leaf data
+        int fd = open(fileName.c_str(), O_RDONLY);
+        if (fd < 0) {
+            return false;
+        }
+        
+        off_t leafOffset = (1 + totalInternalNodes) * Page::PAGE_SIZE;
+        
+        // Calculate how many pairs should be in the file
+        uint32_t numPairs = metadata.lastLeafPairs;
+        if (numPairs == 0 || numPairs > metadata.leafCount * MAX_LEAF_PAIRS) {
+            // Use the maximum capacity for a single leaf
+            numPairs = MAX_LEAF_PAIRS;
+        }
+        
+        // Read interleaved key-value data
+        std::vector<int32_t> leafData(numPairs * 2);
+        ssize_t bytesRead = pread(fd, leafData.data(), leafData.size() * sizeof(int32_t), leafOffset);
+        close(fd);
+        
+        if (bytesRead <= 0) {
+            return false;
+        }
+        
+        // Calculate actual number of pairs from bytes read
+        uint32_t actualPairs = bytesRead / (sizeof(int32_t) * 2);
+        
+        // Linear search through the interleaved data
+        for (uint32_t i = 0; i < actualPairs; i++) {
+            int32_t leafKey = leafData[i * 2];
+            int32_t leafValue = leafData[i * 2 + 1];
+            
+            if (leafKey == key) {
+                value = leafValue;
+                return true;
+            }
+        }
+        
+        return false;
+    }
+    
+    // For multi-level trees, use direct file I/O to read all leaf data
+    // Calculate total internal nodes
+    uint32_t totalInternalNodes = 0;
+    if (metadata.treeHeight > 1) {
+        size_t currentLevel = metadata.leafCount;
+        while (currentLevel > 1) {
+            currentLevel = (currentLevel + MAX_INTERNAL_CHILDREN - 1) / MAX_INTERNAL_CHILDREN;
+            totalInternalNodes += currentLevel;
+        }
+    }
+    
+    // Open file and read all leaf data as continuous stream
+    int fd = open(fileName.c_str(), O_RDONLY);
+    if (fd < 0) {
+        return false;
+    }
+    
+    off_t leafDataStart = (1 + totalInternalNodes) * Page::PAGE_SIZE;
+    uint32_t totalPairs = (metadata.leafCount - 1) * MAX_LEAF_PAIRS + metadata.lastLeafPairs;
+    std::vector<int32_t> allLeafData(totalPairs * 2);
+    ssize_t bytesRead = pread(fd, allLeafData.data(), totalPairs * 2 * sizeof(int32_t), leafDataStart);
+    close(fd);
+    
+    if (bytesRead <= 0) {
+        return false;
+    }
+    
+    // Calculate actual number of pairs from bytes read
+    uint32_t actualPairs = bytesRead / (sizeof(int32_t) * 2);
+    
+    // Binary search through the interleaved data
+    int left = 0;
+    int right = actualPairs - 1;
+    
+    while (left <= right) {
+        int mid = left + (right - left) / 2;
+        int32_t midKey = allLeafData[mid * 2];
+        
+        if (midKey == key) {
+            value = allLeafData[mid * 2 + 1];
+            return true;
+        } else if (midKey < key) {
+            left = mid + 1;
+        } else {
+            right = mid - 1;
+        }
+    }
+    
+    return false; // Key not found
 }
-
-/**
+/**e
  * Binary search: search directly on leaf pages (for comparison)
  */
 bool BTreeSST::getBinarySearch(int key, int& value, const std::string& fileName, const MetadataPage& metadata) {
@@ -378,9 +483,125 @@ bool BTreeSST::getBinarySearch(int key, int& value, const std::string& fileName,
  * Range scan - find all key-value pairs in range [key1, key2]
  */
 std::vector<std::pair<int, int>> BTreeSST::scan(int key1, int key2, const std::string& fileName, bool useBTreeSearch) {
-    // TODO: Implement in next phase
-    std::cerr << "Scan not yet implemented" << std::endl;
-    return {};
+    std::vector<std::pair<int, int>> result;
+    
+    // Early exit if range is invalid
+    if (key1 > key2) {
+        return result;
+    }
+    
+    // Read metadata first
+    MetadataPage metadata;
+    if (!readMetadata(fileName, metadata)) {
+        std::cerr << "Error: Failed to read metadata from " << fileName << std::endl;
+        return result;
+    }
+    
+    // Early exit if range is completely outside SST bounds
+    if (key2 < metadata.minKey || key1 > metadata.maxKey) {
+        return result;
+    }
+    
+    if (!useBTreeSearch) {
+        // TODO: Implement binary search scan in next phase
+        std::cerr << "Binary search scan not yet implemented" << std::endl;
+        return result;
+    }
+    
+    // B-Tree scan implementation
+    // Special case: if tree height is 1, root is a leaf
+    if (metadata.treeHeight == 1) {
+        // For single leaf case, read the leaf data directly
+        uint32_t totalInternalNodes = 0;
+        
+        // Read the raw leaf data
+        int fd = open(fileName.c_str(), O_RDONLY);
+        if (fd < 0) {
+            return result;
+        }
+        
+        off_t leafOffset = (1 + totalInternalNodes) * Page::PAGE_SIZE;
+        
+        // Calculate how many pairs should be in the file
+        uint32_t numPairs = metadata.lastLeafPairs;
+        if (numPairs == 0 || numPairs > metadata.leafCount * MAX_LEAF_PAIRS) {
+            // Use the maximum capacity for a single leaf
+            numPairs = MAX_LEAF_PAIRS;
+        }
+        
+        // Read interleaved key-value data
+        std::vector<int32_t> leafData(numPairs * 2);
+        ssize_t bytesRead = pread(fd, leafData.data(), leafData.size() * sizeof(int32_t), leafOffset);
+        close(fd);
+        
+        if (bytesRead <= 0) {
+            return result;
+        }
+        
+        // Calculate actual number of pairs from bytes read
+        uint32_t actualPairs = bytesRead / (sizeof(int32_t) * 2);
+        
+        // Scan through interleaved data [k1,v1,k2,v2,...]
+        for (uint32_t i = 0; i < actualPairs; i++) {
+            int32_t key = leafData[i * 2];
+            int32_t value = leafData[i * 2 + 1];
+            
+            if (key >= key1 && key <= key2) {
+                result.emplace_back(key, value);
+            } else if (key > key2) {
+                break; // Data is sorted, no more matches possible
+            }
+        }
+        
+        return result;
+    }
+    
+    // Multi-level B-Tree: Scan all leaf pages using direct file I/O
+    // Calculate total internal nodes once
+    uint32_t totalInternalNodes = 0;
+    if (metadata.treeHeight > 1) {
+        size_t currentLevel = metadata.leafCount;
+        while (currentLevel > 1) {
+            currentLevel = (currentLevel + MAX_INTERNAL_CHILDREN - 1) / MAX_INTERNAL_CHILDREN;
+            totalInternalNodes += currentLevel;
+        }
+    }
+    
+    // Open file for reading
+    int fd = open(fileName.c_str(), O_RDONLY);
+    if (fd < 0) {
+        return result;
+    }
+    
+    // Calculate offset where leaf data starts (after metadata and internal nodes)
+    off_t leafDataStart = (1 + totalInternalNodes) * Page::PAGE_SIZE;
+    
+    // Read all leaf data as one continuous stream
+    uint32_t totalPairs = (metadata.leafCount - 1) * MAX_LEAF_PAIRS + metadata.lastLeafPairs;
+    std::vector<int32_t> allLeafData(totalPairs * 2);
+    ssize_t bytesRead = pread(fd, allLeafData.data(), totalPairs * 2 * sizeof(int32_t), leafDataStart);
+    close(fd);
+    
+    if (bytesRead <= 0) {
+        return result;
+    }
+    
+    // Calculate actual number of pairs from bytes read
+    uint32_t actualPairs = bytesRead / (sizeof(int32_t) * 2);
+    
+    // Scan through the continuous interleaved data
+    for (uint32_t i = 0; i < actualPairs; i++) {
+        int32_t key = allLeafData[i * 2];
+        int32_t value = allLeafData[i * 2 + 1];
+        
+        if (key >= key1 && key <= key2) {
+            result.emplace_back(key, value);
+        } else if (key > key2) {
+            break; // Data is sorted, no more matches possible
+        }
+    }
+    
+    return result;
 }
 
 /**

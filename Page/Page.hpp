@@ -6,7 +6,7 @@
 
 class Page {
 public:
-    static constexpr std::size_t PAGE_SIZE = 12;
+    static constexpr std::size_t PAGE_SIZE = 128;
 
     Page() {
         clear();
