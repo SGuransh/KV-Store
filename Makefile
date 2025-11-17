@@ -9,7 +9,7 @@ OUT_DIR = out
 C_DIR = cFiles
 
 # Source files
-SOURCES = $(SRC_DIR)/AVL.cpp $(SRC_DIR)/FileOperations.cpp $(SRC_DIR)/Database.cpp
+SOURCES = $(SRC_DIR)/AVL.cpp $(SRC_DIR)/FileOperations.cpp $(SRC_DIR)/Database.cpp $(BTREE_SOURCES)
 SRC = AVL.cpp FileOperations.cpp Database.cpp
 HEADERS = Memtable_ds.hpp FileOperations.hpp Database.hpp AVL.hpp
 
@@ -23,7 +23,7 @@ TEST_SOURCES = $(wildcard $(TEST_DIR)/*.cpp)
 TESTS = $(patsubst $(TEST_DIR)/%.cpp,$(OUT_DIR)/%,$(TEST_SOURCES))
 
 # Default target - runs everything
-all: $(TESTS) test main test-btree-auto
+all: $(TESTS) test main test-btree-auto test-file-operations
 
 # Main CLI application
 main: main.cpp $(SOURCES)
@@ -81,6 +81,10 @@ test_btree_internal_levels: tests/test_btree_internal_levels.cpp $(BTREE_SOURCES
 test_btree_scan: tests/test_btree_scan.cpp $(BTREE_SOURCES)
 	$(CXX) $(CXXFLAGS) -I. $^ -o $@
 
+# FileOperations test target
+test_file_operations: tests/test_file_operations.cpp FileOperations.cpp $(BTREE_SOURCES)
+	$(CXX) $(CXXFLAGS) -I. $^ -o $@
+
 # Run B-Tree tests
 test-btree: test_btree_get test_btree_internal_levels test_btree_scan
 	@echo "========================================="
@@ -104,6 +108,16 @@ test-all: test test-btree
 	@echo "      All Tests Completed Successfully"
 	@echo "========================================="
 
+# Run FileOperations tests
+test-file-operations: test_file_operations
+	@echo "========================================="
+	@echo "    Running FileOperations Tests"
+	@echo "========================================="
+	@./test_file_operations
+	@echo "========================================="
+	@echo "  FileOperations Tests Completed"
+	@echo "========================================="
+
 # Clean up
 clean:
 	rm -rf $(OUT_DIR) test main
@@ -111,7 +125,8 @@ clean:
 	rm -rf $(C_DIR)
 	rm -rf test.exe
 	rm -rf *.o
-	rm -rf test_btree_get test_btree_internal_levels test_btree_scan
+	rm -rf test_btree_get test_btree_internal_levels test_btree_scan test_file_operations
 	rm -rf /tmp/btree_*
+	rm -rf test_dir_* test_file_* test_write_* test_atomic test_count_sst test_remove test_large_sst test_edge
 
-.PHONY: all test clean test-individual main test-btree test-all
+.PHONY: all test clean test-individual main test-btree test-all test-file-operations

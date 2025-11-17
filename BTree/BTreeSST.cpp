@@ -19,6 +19,10 @@ bool BTreeSST::buildBTree(const std::vector<std::pair<int, int>>& sortedData, co
     // Create build context
     BuildContext ctx(fileName);
     
+    // Set min and max keys from sorted data
+    ctx.minKey = sortedData.front().first;
+    ctx.maxKey = sortedData.back().first;
+    
     // Phase 1: Calculate sizes and allocate memory
     calculateAndAllocateArrays(ctx, sortedData.size());
     
@@ -31,7 +35,8 @@ bool BTreeSST::buildBTree(const std::vector<std::pair<int, int>>& sortedData, co
     }
 
     // Phase 4: Write metadata to disk
-    bool success = writeMetadata(ctx);
+    // Pass sortedData.size() to calculate lastLeafPairs (needed since ctx doesn't store data size)
+    bool success = writeMetadata(ctx, sortedData.size());
     
     return success;
 }
@@ -56,6 +61,10 @@ void BTreeSST::calculateAndAllocateArrays(BuildContext& ctx, size_t dataSize) {
         // Special case: only 1 leaf, it becomes the root (no internal nodes)
         ctx.internalLevelCount = 0;
         ctx.totalInternalNodes = 0;
+        // Set treeHeight = 1 for consistency with the multi-level case (line 121)
+        // Tree height of 1 means: 0 internal levels + 1 leaf level = single root leaf
+        // This ensures metadata is complete even for single-leaf trees
+        ctx.treeHeight = 1;
         std::cout << "  Tree height: 1 (single leaf root)" << std::endl;
         return;
     }
@@ -257,10 +266,15 @@ void BTreeSST::buildInternalLevels(BuildContext& ctx, const int32_t* max_per_nod
     delete[] allInternalNodes;
 }
 
-bool BTreeSST::writeMetadata(BuildContext& ctx) {
+bool BTreeSST::writeMetadata(BuildContext& ctx, size_t dataSize) {
     /*
      * Input:
      *   - ctx: Build context with the completed tree metadata
+     *   - dataSize: Number of key-value pairs in the dataset
+     *               NOTE: We need dataSize separately because BuildContext doesn't store it,
+     *               and for single-leaf trees, ctx.lastNodeKeys is nullptr (not allocated).
+     *               This parameter allows us to calculate lastLeafPairs which is critical
+     *               for scan() and get() functions to know how many pairs are in the last leaf.
      * Algorithm:
      *   1. Populate a MetadataPage struct from ctx.
      *   2. Serialize it into a Page buffer.
@@ -270,6 +284,16 @@ bool BTreeSST::writeMetadata(BuildContext& ctx) {
     metadataPage.minKey = ctx.minKey;
     metadataPage.maxKey = ctx.maxKey;
     metadataPage.treeHeight = ctx.treeHeight;
+    metadataPage.leafCount = ctx.leafNodeCount;
+    
+    // Calculate lastLeafPairs: number of pairs in the last leaf
+    // This is essential for reading the B-Tree correctly - tells us where valid data ends
+    size_t lastLeafPairs = dataSize % MAX_LEAF_PAIRS;
+    if (lastLeafPairs == 0 && dataSize > 0) {
+        lastLeafPairs = MAX_LEAF_PAIRS;  // Last leaf is full
+    }
+    metadataPage.lastLeafPairs = lastLeafPairs;
+    metadataPage.rootPageId = 1; // Root is always at page 1
 
     Page page;
     if (!page.serialize(metadataPage)) {

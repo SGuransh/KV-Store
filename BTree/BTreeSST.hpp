@@ -142,9 +142,10 @@ public:
     /**
      * Phase 3: Write Context metadata to disk
      * @param ctx Build context with complete tree
+     * @param dataSize Number of key-value pairs in the dataset
      * @return true if successful, false otherwise
      */
-    bool writeMetadata(BuildContext& ctx);
+    bool writeMetadata(BuildContext& ctx, size_t dataSize);
     bool getBTreeSearch(int32_t key, int& value, const std::string& filename, const MetadataPage& metadata);
 
 private:
