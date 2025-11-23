@@ -143,9 +143,11 @@ public:
     /**
      * Phase 3: Write Context metadata to disk
      * @param ctx Build context with complete tree
+     * @param dataSize Number of key-value pairs in the dataset
      * @return true if successful, false otherwise
      */
-    bool writeMetadata(BuildContext& ctx);
+    bool writeMetadata(BuildContext& ctx, size_t dataSize);
+    bool getBTreeSearch(int32_t key, int& value, const std::string& filename, const MetadataPage& metadata);
 
 private:
     // === File Operations ===
@@ -186,8 +188,6 @@ private:
      * @param metadata The metadata for this SST
      * @return true if found, false otherwise
      */
-    bool getBTreeSearch(int key, int& value, const std::string& fileName, const MetadataPage& metadata);
-    
     /**
      * Binary search mode - search directly on leaf pages
      * @param key The key to search for
