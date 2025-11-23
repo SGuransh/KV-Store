@@ -1,5 +1,6 @@
 #include "FileOperations.hpp"
 #include "AVL.hpp"
+#include "BTree/BTreeSST.hpp"
 #include <iostream>
 #include <chrono>
 #include <memory>
@@ -352,12 +353,15 @@ using namespace std;
         // Get count of SST files and search through them
         int fileCount = FileOperations::count_sst_files(databaseDirectory);
         
+        // Create B-Tree SST instance for querying
+        BTreeSST btree;
+        
         // Search through numbered SST files (1.txt, 2.txt, etc.)
         for (int i = 1; i <= fileCount; i++) {
             std::string filename = databaseDirectory + "/" + std::to_string(i) + ".txt";
             if (FileOperations::file_exists(filename)) {
-                std::vector<std::pair<int, int>> pairs = FileOperations::read_sst_file(filename);
-                if (binary_search_sst(pairs, key, value)) {
+                // Use B-Tree get function instead of reading entire file
+                if (btree.get(key, value, filename)) {
                     std::cout << "Key " << key << " found in SST file " << filename << " with value " << value << std::endl;
                     return true;
                 }
@@ -379,17 +383,16 @@ using namespace std;
         // Get count of SST files and search through them
         int fileCount = FileOperations::count_sst_files(databaseDirectory);
         
+        // Create B-Tree SST instance for querying
+        BTreeSST btree;
+        
         // Search through numbered SST files (1.txt, 2.txt, etc.)
         for (int i = 1; i <= fileCount; i++) {
             std::string filename = databaseDirectory + "/" + std::to_string(i) + ".txt";
             if (FileOperations::file_exists(filename)) {
-                std::vector<std::pair<int, int>> pairs = FileOperations::read_sst_file(filename);
-                // Add matching pairs from this SST file
-                for (const auto& pair : pairs) {
-                    if (pair.first >= key1 && pair.first <= key2) {
-                        result.push_back(pair);
-                    }
-                }
+                // Use B-Tree scan function instead of reading entire file
+                std::vector<std::pair<int, int>> fileResults = btree.scan(key1, key2, filename);
+                result.insert(result.end(), fileResults.begin(), fileResults.end());
             }
         }
         

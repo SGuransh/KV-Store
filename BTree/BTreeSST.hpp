@@ -7,7 +7,7 @@
 #include <vector>
 #include <cstdint>
 #include "BTreeNode.hpp"
-#include "../Page/Page.hpp"
+#include "../BufferPool/Page.hpp"
 
 #ifdef _WIN32
 #include <io.h>
@@ -30,13 +30,14 @@ struct BuildContext {
     int32_t minKey;          // Smallest key in the SST (for range filtering)
     int32_t maxKey;          // Largest key in the SST (for range filtering)
     uint32_t treeHeight;     // Height of the B-Tree (number of internal levels + 1 for leaves)
+    uint32_t lastLeafPairs;  // Number of pairs in the last leaf
 
     uint32_t* nodesPerLevel;     // Number of nodes at each level
     uint32_t* lastNodeKeys;      // Number of keys/pairs in last node at each level
     
     BuildContext(const std::string& fname) 
         : fileName(fname), fd(-1), leafNodeCount(0), internalLevelSizes(nullptr), internalLevelCount(0), totalInternalNodes(0),
-          nodesPerLevel(nullptr), lastNodeKeys(nullptr) {}
+          lastLeafPairs(0), nodesPerLevel(nullptr), lastNodeKeys(nullptr) {}
 
     ~BuildContext() {
         cleanup();
@@ -142,9 +143,11 @@ public:
     /**
      * Phase 3: Write Context metadata to disk
      * @param ctx Build context with complete tree
+     * @param dataSize Number of key-value pairs in the dataset
      * @return true if successful, false otherwise
      */
-    bool writeMetadata(BuildContext& ctx);
+    bool writeMetadata(BuildContext& ctx, size_t dataSize);
+    bool getBTreeSearch(int32_t key, int& value, const std::string& filename, const MetadataPage& metadata);
 
 private:
     // === File Operations ===
@@ -185,8 +188,6 @@ private:
      * @param metadata The metadata for this SST
      * @return true if found, false otherwise
      */
-    bool getBTreeSearch(int key, int& value, const std::string& fileName, const MetadataPage& metadata);
-    
     /**
      * Binary search mode - search directly on leaf pages
      * @param key The key to search for

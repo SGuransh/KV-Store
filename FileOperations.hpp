@@ -6,6 +6,7 @@
 #include <string>
 #include <vector>
 #include <utility>
+#include "BTree/BTreeSST.hpp"
 
 class FileOperations {
 public:

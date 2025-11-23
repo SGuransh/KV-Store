@@ -5,6 +5,7 @@
 
 #include <cstring>
 #include <cstddef>
+#include <type_traits>
 
 /**
  * Page represents a 4KB block of data that is the fundamental unit
@@ -58,6 +59,37 @@ struct Page {
      * @return Const pointer to the internal data array
      */
     const char* getData() const;
+
+    /**
+     * Serialize a trivially copyable object into the page
+     * @param value The object to serialize
+     * @return true if successful, false if object is too large
+     */
+    template <typename T>
+    bool serialize(const T& value) {
+        static_assert(std::is_trivially_copyable<T>::value, "Page::serialize requires trivially copyable type");
+        if (sizeof(T) > PAGE_SIZE) {
+            return false;
+        }
+        clear();
+        std::memcpy(data, &value, sizeof(T));
+        return true;
+    }
+
+    /**
+     * Deserialize a trivially copyable object from the page
+     * @param value Output parameter for the deserialized object
+     * @return true if successful, false if object is too large
+     */
+    template <typename T>
+    bool deserialize(T& value) const {
+        static_assert(std::is_trivially_copyable<T>::value, "Page::deserialize requires trivially copyable type");
+        if (sizeof(T) > PAGE_SIZE) {
+            return false;
+        }
+        std::memcpy(&value, data, sizeof(T));
+        return true;
+    }
 };
 
 #endif // PAGE_HPP

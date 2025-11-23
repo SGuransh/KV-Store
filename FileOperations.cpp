@@ -1,10 +1,13 @@
 #include "FileOperations.hpp"
+#include "BTree/BTreeSST.hpp"
 #include <iostream>
 #include <fstream>
 #include <sstream>
 #include <sys/stat.h>
 #include <dirent.h>
 #include <cstdio>
+#include <algorithm>
+#include <cstdint>
 
 bool FileOperations::create_directory(const std::string& path) {
     try {
@@ -47,18 +50,17 @@ bool FileOperations::file_exists(const std::string& fileName) {
 
 std::vector<std::pair<int, int>> FileOperations::read_sst_file(const std::string& filePath) {
     std::vector<std::pair<int, int>> content;
-    std::ifstream file(filePath, std::ios::binary);
-    if (!file.is_open()) {
+    
+    // Check if file exists
+    if (!file_exists(filePath)) {
         std::cout << "Failed to open file: " << filePath << std::endl;
         return content;
     }
     
-   int key, value;
-    while (file.read(reinterpret_cast<char*>(&key), sizeof(int)) &&
-           file.read(reinterpret_cast<char*>(&value), sizeof(int))) {
-        content.push_back({key, value});
-    }
-    file.close();
+    // Use B-Tree SST scan with full range to read all data
+    BTreeSST btree;
+    content = btree.scan(INT32_MIN, INT32_MAX, filePath);
+    
     return content;
 }
 
@@ -71,23 +73,38 @@ bool FileOperations::write_sst_file(const std::vector<std::pair<int, int>>& data
         // Choose write path based on atomic flag
         std::string writePath = isAtomic ? tempPath : actualPath;
         
-        std::ofstream file(writePath, std::ios::binary);
-        if (!file.is_open()) {
-            std::cout << "Failed to create SST file: " << writePath << std::endl;
-            return false;
+        // Handle empty data - create an empty file
+        if (data.empty()) {
+            std::ofstream file(writePath, std::ios::binary);
+            if (!file.is_open()) {
+                std::cout << "Failed to create empty SST file: " << writePath << std::endl;
+                return false;
+            }
+            file.close();
+            
+            // Atomically rename temp file to final file if using atomic writes
+            if (isAtomic) {
+                if (std::rename(tempPath.c_str(), actualPath.c_str()) != 0) {
+                    std::cout << "Failed to rename temporary file to final file" << std::endl;
+                    std::remove(tempPath.c_str());
+                    return false;
+                }
+            }
+            
+            std::cout << "Successfully wrote SST file: " << actualPath << " with 0 entries" << std::endl;
+            return true;
         }
-
-        // Write data in simple text format: "key value" per line
-          for (const auto& pair : data) {
-            file.write(reinterpret_cast<const char*>(&pair.first), sizeof(int));
-            file.write(reinterpret_cast<const char*>(&pair.second), sizeof(int));
-        }
-
-        file.close();
-
-        // Check if write was successful
-        if (file.fail()) {
-            std::cout << "Failed to write data to SST file" << std::endl;
+        
+        // Sort the data before writing (B-Tree requires sorted data)
+        std::vector<std::pair<int, int>> sortedData = data;
+        std::sort(sortedData.begin(), sortedData.end());
+        
+        // Use B-Tree SST to write the file
+        BTreeSST btree;
+        bool buildSuccess = btree.buildBTree(sortedData, writePath);
+        
+        if (!buildSuccess) {
+            std::cout << "Failed to build B-Tree SST file: " << writePath << std::endl;
             if (isAtomic) {
                 std::remove(tempPath.c_str());
             }

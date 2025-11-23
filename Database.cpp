@@ -2,8 +2,12 @@
 #include "Memtable_ds.hpp"
 #include "FileOperations.hpp"
 #include <iostream>
+#include <limits>
+#include <map>
 #include "Database.hpp"
 #include "MemtableFactory.hpp"
+#include "BTree/BTreeSST.hpp"
+#include "LSM/LSMTree.hpp"
 
 
     // Memtable_ds* engine;
@@ -87,10 +91,20 @@
         engine->set_next_file_number(nextFileNumber);
         engine->set_database_directory(databaseDirectory);
 
+        // Initialize LSMTree
+        lsmTree = std::make_unique<LSMTree>(databaseDirectory);
+        if (!lsmTree) {
+            std::cout << "Failed to initialize LSMTree" << std::endl;
+            databaseName.clear();
+            databaseDirectory.clear();
+            return false;
+        }
+
         if (!load_incomplete_file()) {
             std::cout << "Failed to load incomplete data" << std::endl;
             databaseName.clear();
             databaseDirectory.clear();
+            lsmTree.reset();
             return false;
         }
 
@@ -116,14 +130,37 @@
             bool isComplete = (engine->get_size() == engine->get_max_elements());
             
             if (isComplete) {
-                if (!engine->flush_to_sst(nextFileNumber, true)) {
-                    std::cout << "Error: Failed to flush complete memtable data during database close" << std::endl;
-                    success = false;
-                } else {
-                    std::cout << "Successfully flushed complete memtable data to SST file " << nextFileNumber << ".txt" << std::endl;
-                    nextFileNumber++;
+                // Collect all pairs from memtable
+                std::vector<std::pair<int, int>> pairs = engine->range_scan(
+                    std::numeric_limits<int>::min(), std::numeric_limits<int>::max());
+                
+                if (!pairs.empty()) {
+                    // Get next SST number from LSMTree
+                    int sstNumber = lsmTree->getNextSSTNumber();
+                    
+                    // Create SST filename (just the name, not full path)
+                    std::string sstFileName = "sst_" + std::to_string(sstNumber) + ".txt";
+                    std::string sstFullPath = databaseDirectory + "/" + sstFileName;
+                    
+                    // Build B-Tree SST from sorted memtable data
+                    BTreeSST sstBuilder;
+                    if (!sstBuilder.buildBTree(pairs, sstFullPath)) {
+                        std::cout << "Error: Failed to build B-Tree SST file during database close" << std::endl;
+                        success = false;
+                    } else {
+                        std::cout << "Successfully created SST file: " << sstFullPath << std::endl;
+                        
+                        // Add SST to LSMTree at Level 0 (pass just the filename)
+                        if (!lsmTree->addSST(sstFileName, 0)) {
+                            std::cout << "Error: Failed to add SST to LSMTree during database close" << std::endl;
+                            success = false;
+                        } else {
+                            std::cout << "Successfully flushed complete memtable data to SST and added to LSMTree" << std::endl;
+                        }
+                    }
                 }
             } else {
+                // For incomplete data, still use the old method to write to incomplete.txt
                 if (!engine->flush_to_sst(-1, false)) {
                     std::cout << "Error: Failed to flush incomplete memtable data during database close" << std::endl;
                     success = false;
@@ -135,6 +172,9 @@
             std::cout << "Memtable is empty, no data to flush" << std::endl;
         }
 
+        // Clean up LSMTree
+        lsmTree.reset();
+        
         databaseName.clear();
         databaseDirectory.clear();
         isOpen = false;
@@ -155,10 +195,55 @@
             std::cout << "Error: Database is not open" << std::endl;
             return false;
         }
+        
+        // Check if memtable is at capacity and needs to be flushed
+        if (engine->get_size() >= engine->get_max_elements()) {
+            std::cout << "Memtable is at capacity (" << engine->get_size() << "/" 
+                      << engine->get_max_elements() << "), flushing to SST" << std::endl;
+            
+            // Collect all pairs from memtable
+            std::vector<std::pair<int, int>> pairs = engine->range_scan(
+                std::numeric_limits<int>::min(), std::numeric_limits<int>::max());
+            
+            if (pairs.empty()) {
+                std::cout << "Warning: Memtable reported as full but no pairs collected" << std::endl;
+            } else {
+                // Get next SST number from LSMTree
+                int sstNumber = lsmTree->getNextSSTNumber();
+                
+                // Create SST filename (just the name, not full path)
+                std::string sstFileName = "sst_" + std::to_string(sstNumber) + ".txt";
+                std::string sstFullPath = databaseDirectory + "/" + sstFileName;
+                
+                // Build B-Tree SST from sorted memtable data
+                BTreeSST sstBuilder;
+                if (!sstBuilder.buildBTree(pairs, sstFullPath)) {
+                    std::cout << "Error: Failed to build B-Tree SST file" << std::endl;
+                    return false;
+                }
+                
+                std::cout << "Successfully created SST file: " << sstFullPath << std::endl;
+                
+                // Add SST to LSMTree at Level 0 (pass just the filename)
+                if (!lsmTree->addSST(sstFileName, 0)) {
+                    std::cout << "Error: Failed to add SST to LSMTree" << std::endl;
+                    return false;
+                }
+                
+                std::cout << "Successfully added SST to LSMTree Level 0" << std::endl;
+                
+                // Clear the memtable manually since we're bypassing the internal flush
+                // We need to create a new memtable instance
+                int maxElements = engine->get_max_elements();
+                engine = create_memtable(MemtableType::AVL, maxElements);
+                engine->set_database_directory(databaseDirectory);
+                
+                std::cout << "Memtable cleared and ready for new insertions" << std::endl;
+            }
+        }
+        
         auto result = engine->insert(key, value);
         if (result != nullptr) {
-            // Sync the next file number in case a flush occurred during insert
-            nextFileNumber = engine->get_next_file_number();
             return true;
         }
         return false;
@@ -169,7 +254,14 @@
             std::cout << "Error: Database is not open" << std::endl;
             return false;
         }
-        return engine->search(key, value);
+        
+        // First check memtable (most recent data)
+        if (engine->search(key, value)) {
+            return true;
+        }
+        
+        // If not found in memtable, query LSMTree
+        return lsmTree->get(key, value);
     }
 
     std::vector<std::pair<int, int>> Database::range_scan(int key1, int key2) {
@@ -177,7 +269,35 @@
             std::cout << "Error: Database is not open" << std::endl;
             return std::vector<std::pair<int, int>>();
         }
-        return engine->range_scan(key1, key2);
+        
+        // Get results from memtable (most recent data)
+        std::vector<std::pair<int, int>> memtableResults = engine->range_scan(key1, key2);
+        
+        // Get results from LSMTree
+        std::vector<std::pair<int, int>> lsmResults = lsmTree->scan(key1, key2);
+        
+        // Merge results with memtable taking precedence for duplicate keys
+        // Use a map to handle deduplication
+        std::map<int, int> mergedMap;
+        
+        // First add LSM results (older data)
+        for (const auto& pair : lsmResults) {
+            mergedMap[pair.first] = pair.second;
+        }
+        
+        // Then add memtable results (newer data, overwrites duplicates)
+        for (const auto& pair : memtableResults) {
+            mergedMap[pair.first] = pair.second;
+        }
+        
+        // Convert map back to vector
+        std::vector<std::pair<int, int>> result;
+        result.reserve(mergedMap.size());
+        for (const auto& pair : mergedMap) {
+            result.push_back(pair);
+        }
+        
+        return result;
     }
 
     // Getters
