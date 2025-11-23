@@ -239,6 +239,16 @@
                 engine->set_database_directory(databaseDirectory);
                 
                 std::cout << "Memtable cleared and ready for new insertions" << std::endl;
+                
+                // Check if Level 0 needs compaction (2 or more SSTs)
+                if (lsmTree->needsCompaction(0)) {
+                    std::cout << "Level 0 has multiple SSTs, triggering compaction..." << std::endl;
+                    if (lsmTree->compactLevel(0)) {
+                        std::cout << "Successfully compacted Level 0" << std::endl;
+                    } else {
+                        std::cout << "Warning: Level 0 compaction failed" << std::endl;
+                    }
+                }
             }
         }
         
@@ -305,3 +315,35 @@
     int Database::get_max_elements() const { return engine->get_max_elements(); }
     bool Database::is_open() const { return isOpen; }
     std::string Database::get_database_name() const { return databaseName; }
+
+    // LSM operations
+    void Database::print_lsm_structure() const {
+        if (!isOpen || !lsmTree) {
+            std::cout << "Error: Database is not open" << std::endl;
+            return;
+        }
+        lsmTree->printStructure();
+    }
+
+    bool Database::compact_level(int level) {
+        if (!isOpen || !lsmTree) {
+            std::cout << "Error: Database is not open" << std::endl;
+            return false;
+        }
+        
+        if (!lsmTree->needsCompaction(level)) {
+            std::cout << "Level " << level << " does not need compaction" << std::endl;
+            return true;
+        }
+        
+        std::cout << "Compacting Level " << level << "..." << std::endl;
+        bool success = lsmTree->compactLevel(level);
+        
+        if (success) {
+            std::cout << "Successfully compacted Level " << level << std::endl;
+        } else {
+            std::cout << "Failed to compact Level " << level << std::endl;
+        }
+        
+        return success;
+    }

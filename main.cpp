@@ -14,6 +14,8 @@ void printHelp() {
     std::cout << "  scan <key1> <key2>      - Range scan from key1 to key2" << std::endl;
     std::cout << "  size                    - Show current memtable size" << std::endl;
     std::cout << "  status                  - Show database status" << std::endl;
+    std::cout << "  lsm                     - Show LSM tree structure" << std::endl;
+    std::cout << "  compact <level>         - Manually compact a level" << std::endl;
     std::cout << "  help                    - Show this help message" << std::endl;
     std::cout << "  exit                    - Exit the program" << std::endl;
     std::cout << "===================================" << std::endl;
@@ -174,6 +176,32 @@ int main() {
             }
             else if (command == "status") {
                 printStatus(db);
+            }
+            else if (command == "lsm") {
+                if (!db.is_open()) {
+                    std::cout << "Error: No database is open. Use 'open <db_name>' first" << std::endl;
+                    continue;
+                }
+                db.print_lsm_structure();
+            }
+            else if (command == "compact") {
+                if (!db.is_open()) {
+                    std::cout << "Error: No database is open. Use 'open <db_name>' first" << std::endl;
+                    continue;
+                }
+
+                int level;
+                if (!(iss >> level)) {
+                    std::cout << "Error: Please provide a level number" << std::endl;
+                    std::cout << "Usage: compact <level>" << std::endl;
+                    continue;
+                }
+
+                if (db.compact_level(level)) {
+                    std::cout << "✓ Level " << level << " compacted successfully" << std::endl;
+                } else {
+                    std::cout << "✗ Failed to compact level " << level << std::endl;
+                }
             }
             else {
                 std::cout << "Unknown command: " << command << std::endl;

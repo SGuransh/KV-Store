@@ -27,13 +27,14 @@ private:
     bool loadManifest();
     bool saveManifest();
 
-    // Compaction operations
-    bool needsCompaction(int level) const;
-    bool compactLevel(int level);
+    // Merge operation (used by compaction)
     bool mergeTwoSSTs(const std::string& sst1, const std::string& sst2,
                       const std::string& outputSST, int targetLevel);
 
 public:
+    // Compaction operations (public for Database class)
+    bool needsCompaction(int level) const;
+    bool compactLevel(int level);
     /**
      * Constructor - Initialize LSMTree for a database directory
      * @param directory Path to the database directory
