@@ -38,7 +38,10 @@ HEADERS = Memtable_ds.hpp FileOperations.hpp Database.hpp AVL.hpp \
 	    BufferPool/BufferPool.hpp BufferPool/ClockEvictionPolicy.hpp BufferPool/EvictionPolicy.hpp
 
 # B-Tree source files
-BTREE_SOURCES = BTree/BTreeSST.cpp
+BTREE_SOURCES = BTree/BTreeSST.cpp BufferPool/Page.cpp
+
+# LSM source files (includes BTree dependencies)
+LSM_SOURCES = LSM/LSMTree.cpp LSM/MergeBuffer.cpp BTree/BTreeSST.cpp BufferPool/Page.cpp FileOperations.cpp
 
 # Test sources
 TEST_SOURCES = $(wildcard $(TEST_DIR)/*.cpp)
@@ -58,6 +61,8 @@ $(OUT_DIR)/%: $(TEST_DIR)/%.cpp $(SOURCES)
 	@mkdir -p $(OUT_DIR)
 	@if [[ $* == *btree* ]]; then \
 		$(CXX) $(CXXFLAGS) -I. $< $(BTREE_SOURCES) -o $@; \
+	elif [[ $* == *merge* ]] || [[ $* == *compaction* ]]; then \
+		$(CXX) $(CXXFLAGS) -I. $< $(LSM_SOURCES) -o $@; \
 	else \
 		$(CXX) $(CXXFLAGS) $< $(SOURCES) -o $@; \
 	fi
@@ -109,6 +114,19 @@ test_btree_scan: tests/test_btree_scan.cpp $(BTREE_SOURCES)
 test_file_operations: tests/test_file_operations.cpp FileOperations.cpp $(BTREE_SOURCES)
 	$(CXX) $(CXXFLAGS) -I. $^ -o $@
 
+# LSM specific test targets
+test_merge_algorithm: tests/test_merge_algorithm.cpp $(LSM_SOURCES)
+	$(CXX) $(CXXFLAGS) -I. $^ -o $@
+
+test_mergebuffer: tests/test_mergebuffer.cpp $(LSM_SOURCES)
+	$(CXX) $(CXXFLAGS) -I. $^ -o $@
+
+test_compaction: tests/test_compaction.cpp $(LSM_SOURCES)
+	$(CXX) $(CXXFLAGS) -I. $^ -o $@
+
+test_sstmetadata: tests/test_sstmetadata.cpp $(LSM_SOURCES)
+	$(CXX) $(CXXFLAGS) -I. $^ -o $@
+
 # Run B-Tree tests
 test-btree: test_btree_get test_btree_internal_levels test_btree_scan
 	@echo "========================================="
@@ -142,6 +160,26 @@ test-file-operations: test_file_operations
 	@echo "  FileOperations Tests Completed"
 	@echo "========================================="
 
+# Run LSM tests
+test-lsm: test_merge_algorithm test_mergebuffer test_compaction test_sstmetadata
+	@echo "========================================="
+	@echo "       Running LSM Tests"
+	@echo "========================================="
+	@echo "Running Merge Algorithm Tests..."
+	@./test_merge_algorithm
+	@echo ""
+	@echo "Running MergeBuffer Tests..."
+	@./test_mergebuffer
+	@echo ""
+	@echo "Running Compaction Tests..."
+	@./test_compaction
+	@echo ""
+	@echo "Running SST Metadata Tests..."
+	@./test_sstmetadata
+	@echo "========================================="
+	@echo "       LSM Tests Completed"
+	@echo "========================================="
+
 # Clean up
 clean:
 	rm -rf $(OUT_DIR) test main
@@ -150,7 +188,9 @@ clean:
 	rm -rf test.exe
 	rm -rf *.o
 	rm -rf test_btree_get test_btree_internal_levels test_btree_scan test_file_operations
+	rm -rf test_merge_algorithm test_mergebuffer test_compaction test_sstmetadata
 	rm -rf /tmp/btree_*
 	rm -rf test_dir_* test_file_* test_write_* test_atomic test_count_sst test_remove test_large_sst test_edge
+	rm -rf test_merge_* test_compaction_* test_cascade_* test_get_* test_scan_* test_update_* test_recovery_*
 
-.PHONY: all test clean test-individual main test-btree test-all test-file-operations
+.PHONY: all test clean test-individual main test-btree test-all test-file-operations test-lsm

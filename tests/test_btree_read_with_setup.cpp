@@ -45,13 +45,13 @@ int main() {
     // Now test reading (use binary search since B-Tree search not yet implemented)
     BTreeSST reader;
     int value;
-    bool found = reader.get(1, value, "test_merge_nonoverlap/sst_merged.txt", false);
+    bool found = reader.get(1, value, "test_merge_nonoverlap/sst_merged.txt");
     std::cout << "Found key 1: " << found << ", value: " << value << std::endl;
     
-    found = reader.get(20, value, "test_merge_nonoverlap/sst_merged.txt", false);
+    found = reader.get(20, value, "test_merge_nonoverlap/sst_merged.txt");
     std::cout << "Found key 20: " << found << ", value: " << value << std::endl;
     
-    found = reader.get(40, value, "test_merge_nonoverlap/sst_merged.txt", false);
+    found = reader.get(40, value, "test_merge_nonoverlap/sst_merged.txt");
     std::cout << "Found key 40: " << found << ", value: " << value << std::endl;
     
     std::cout << "\n✓ test_btree_read passed!" << std::endl;

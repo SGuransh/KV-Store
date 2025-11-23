@@ -50,7 +50,7 @@ void test_merge_non_overlapping_keys() {
     std::string fullOutput = testDir + "/sst_merged.txt";
     for (int i = 1; i <= 40; i++) {
         int value;
-        assert(reader.get(i, value, fullOutput, false) == true);  // Use binary search
+        assert(reader.get(i, value, fullOutput) == true);  // Use B-Tree search
         assert(value == i * 10);
     }
     
@@ -99,7 +99,7 @@ void test_merge_overlapping_keys() {
     std::string fullOutput = testDir + "/sst_merged.txt";
     for (int i = 1; i <= 50; i++) {
         int value;
-        assert(reader.get(i, value, fullOutput, false) == true);  // Use binary search
+        assert(reader.get(i, value, fullOutput) == true);  // Use B-Tree search
         assert(value == i * 10);
     }
     
@@ -148,7 +148,7 @@ void test_merge_duplicate_key_resolution() {
     std::string fullOutput = testDir + "/sst_merged.txt";
     for (int i = 1; i <= 20; i++) {
         int value;
-        assert(reader.get(i, value, fullOutput, false) == true);  // Use binary search
+        assert(reader.get(i, value, fullOutput) == true);  // Use B-Tree search
         // Should have value from sst1 (i * 100), not sst2 (i * 999)
         assert(value == i * 100);
     }
@@ -182,8 +182,8 @@ void test_merge_various_sizes() {
         
         BTreeSST reader;
         int value;
-        assert(reader.get(1, value, testDir + "/small_merged.txt", false) == true);
-        assert(reader.get(20, value, testDir + "/small_merged.txt", false) == true);
+        assert(reader.get(1, value, testDir + "/small_merged.txt") == true);
+        assert(reader.get(20, value, testDir + "/small_merged.txt") == true);
         std::cout << "  ✓ Small dataset merge (20 pairs total)" << std::endl;
     }
     
@@ -199,8 +199,8 @@ void test_merge_various_sizes() {
         
         BTreeSST reader;
         int value;
-        assert(reader.get(1, value, testDir + "/medium_merged.txt", false) == true);
-        assert(reader.get(200, value, testDir + "/medium_merged.txt", false) == true);
+        assert(reader.get(1, value, testDir + "/medium_merged.txt") == true);
+        assert(reader.get(200, value, testDir + "/medium_merged.txt") == true);
         std::cout << "  ✓ Medium dataset merge (200 pairs total)" << std::endl;
     }
     
@@ -216,8 +216,8 @@ void test_merge_various_sizes() {
         
         BTreeSST reader;
         int value;
-        assert(reader.get(1, value, testDir + "/large_merged.txt", false) == true);
-        assert(reader.get(1000, value, testDir + "/large_merged.txt", false) == true);
+        assert(reader.get(1, value, testDir + "/large_merged.txt") == true);
+        assert(reader.get(1000, value, testDir + "/large_merged.txt") == true);
         std::cout << "  ✓ Large dataset merge (1000 pairs total)" << std::endl;
     }
     
@@ -264,7 +264,7 @@ void test_merge_interleaved_keys() {
     std::string fullOutput = testDir + "/sst_merged.txt";
     for (int i = 1; i <= 40; i++) {
         int value;
-        assert(reader.get(i, value, fullOutput, false) == true);  // Use binary search
+        assert(reader.get(i, value, fullOutput) == true);  // Use B-Tree search
         assert(value == i * 10);
     }
     

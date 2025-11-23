@@ -466,9 +466,9 @@ bool LSMTree::get(int key, int& value) {
                 continue;  // Skip this SST - key not in range
             }
             
-            // Key might be in this SST - query it using BTreeSST::get (use binary search for now)
+            // Key might be in this SST - query it using BTreeSST::get (use B-Tree search)
             std::string fullPath = dbDirectory + "/" + sst.fileName;
-            if (sstBuilder.get(key, value, fullPath, false)) {  // Use binary search
+            if (sstBuilder.get(key, value, fullPath)) {  // Use B-Tree search (default)
                 // Found the key - return immediately (most recent version)
                 return true;
             }
@@ -498,9 +498,9 @@ std::vector<std::pair<int, int>> LSMTree::scan(int key1, int key2) {
                 continue;  // No overlap - skip this SST
             }
             
-            // Query this SST using BTreeSST::scan (use binary search for now)
+            // Query this SST using BTreeSST::scan (use B-Tree search)
             std::string fullPath = dbDirectory + "/" + sst.fileName;
-            std::vector<std::pair<int, int>> sstResults = sstBuilder.scan(key1, key2, fullPath, false);  // Use binary search
+            std::vector<std::pair<int, int>> sstResults = sstBuilder.scan(key1, key2, fullPath);  // Use B-Tree search (default)
             
             // Add results to map - only insert if key doesn't already exist
             // This ensures we keep the version from the lowest level (most recent)
