@@ -8,11 +8,13 @@
 #include <string>
 #include <vector>
 #include "Memtable_ds.hpp"
+#include "LSM/LSMTree.hpp"
 #include <memory>
 
 class Database {
 private:
     std::unique_ptr<Memtable_ds> engine;
+    std::unique_ptr<LSMTree> lsmTree;
     std::string databaseName;
     std::string databaseDirectory;
     bool isOpen;
