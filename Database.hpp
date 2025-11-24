@@ -19,11 +19,15 @@ private:
     std::string databaseDirectory;
     bool isOpen;
     int nextFileNumber;
+    
+    // Bloom filter configuration
+    uint32_t bloomBitsPerEntry;   // Default: 10 bits per entry
+    uint32_t bloomHashCount;       // Default: 3 hash functions
 
     bool load_incomplete_file();
 
 public:
-    Database(int memtableCapacity = 1000);
+    Database(int memtableCapacity = 1000, uint32_t bitsPerEntry = 10, uint32_t hashCount = 3);
     ~Database();
 
     bool open_database(const std::string& dbName);
@@ -36,6 +40,10 @@ public:
     // LSM operations
     void print_lsm_structure() const;
     bool compact_level(int level);
+
+    // Bloom filter getters
+    uint32_t getBloomBitsPerEntry() const { return bloomBitsPerEntry; }
+    uint32_t getBloomHashCount() const { return bloomHashCount; }
 
     // Getters
     int get_size() const;

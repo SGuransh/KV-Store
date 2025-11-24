@@ -28,7 +28,8 @@ constexpr uint32_t MAX_INTERNAL_CHILDREN = MAX_INTERNAL_KEYS + 1;
 
 /**
  * Metadata page - stored at page 0 of every SST file
- * Contains information about the B-Tree structure
+ * Contains information about the B-Tree structure and bloom filter
+ * Bloom filter is stored at the END of the SST file
  */
 struct MetadataPage {    
     uint32_t magic;          // Magic number for file validation (0xB7EE0000)
@@ -43,13 +44,21 @@ struct MetadataPage {
     // Level 0 = leaves, Level 1+ = internal nodes
     uint32_t nodesPerLevel[MAX_TREE_HEIGHT];     // Number of nodes at each level
     uint32_t lastNodeKeys[MAX_TREE_HEIGHT];      // Number of keys/pairs in last node at each level
+
+    // Bloom filter metadata (filter stored at END of SST file)
+    uint32_t bloom_bits;         // Total number of bits in bloom filter
+    uint32_t bloom_bytes;        // Total bytes allocated for bloom filter
+    uint32_t bloom_hash_count;   // Number of hash functions used (k)
+
+    uint32_t leaf_start_page;   // Page ID where leaf nodes start
     
     static constexpr uint32_t MAGIC_NUMBER = 0xB7EE0000;
     
-        MetadataPage() 
-                : magic(MAGIC_NUMBER), rootPageId(0), treeHeight(0), 
-                    leafCount(0), lastLeafPairs(0), 
-          minKey(0), maxKey(0) {
+    MetadataPage() 
+        : magic(MAGIC_NUMBER), rootPageId(0), treeHeight(0), 
+          leafCount(0), lastLeafPairs(0), 
+          minKey(0), maxKey(0),
+          bloom_bits(0), bloom_bytes(0), bloom_hash_count(0) {
         std::memset(nodesPerLevel, 0, sizeof(nodesPerLevel));
         std::memset(lastNodeKeys, 0, sizeof(lastNodeKeys));
     }

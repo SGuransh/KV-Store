@@ -16,7 +16,8 @@
     // bool isOpen;
     // int nextFileNumber;
 
-    Database::Database(int memtableCapacity) {
+    Database::Database(int memtableCapacity, uint32_t bitsPerEntry, uint32_t hashCount) 
+        : bloomBitsPerEntry(bitsPerEntry), bloomHashCount(hashCount) {
         // engine = new AVL(memtableCapacity);
         engine = create_memtable(MemtableType::AVL, memtableCapacity);
         isOpen = false;
@@ -142,9 +143,9 @@
                     std::string sstFileName = "sst_" + std::to_string(sstNumber) + ".txt";
                     std::string sstFullPath = databaseDirectory + "/" + sstFileName;
                     
-                    // Build B-Tree SST from sorted memtable data
+                    // Build B-Tree SST from sorted memtable data with bloom filter
                     BTreeSST sstBuilder;
-                    if (!sstBuilder.buildBTree(pairs, sstFullPath)) {
+                    if (!sstBuilder.buildBTree(pairs, sstFullPath, bloomBitsPerEntry, bloomHashCount)) {
                         std::cout << "Error: Failed to build B-Tree SST file during database close" << std::endl;
                         success = false;
                     } else {
@@ -215,9 +216,9 @@
                 std::string sstFileName = "sst_" + std::to_string(sstNumber) + ".txt";
                 std::string sstFullPath = databaseDirectory + "/" + sstFileName;
                 
-                // Build B-Tree SST from sorted memtable data
+                // Build B-Tree SST from sorted memtable data with bloom filter
                 BTreeSST sstBuilder;
-                if (!sstBuilder.buildBTree(pairs, sstFullPath)) {
+                if (!sstBuilder.buildBTree(pairs, sstFullPath, bloomBitsPerEntry, bloomHashCount)) {
                     std::cout << "Error: Failed to build B-Tree SST file" << std::endl;
                     return false;
                 }

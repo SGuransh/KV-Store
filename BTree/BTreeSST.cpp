@@ -4,11 +4,15 @@
 #include <iostream>
 #include <algorithm>
 #include <vector>
+#include <functional>
 
 /**
  * Main entry point: Build B-Tree SST from sorted data and write to disk
  */
-bool BTreeSST::buildBTree(const std::vector<std::pair<int, int>>& sortedData, const std::string& fileName) {
+bool BTreeSST::buildBTree(const std::vector<std::pair<int, int>>& sortedData, 
+                         const std::string& fileName,
+                         uint32_t bitsPerEntry,
+                         uint32_t hashCount) {
     if (sortedData.empty()) {
         std::cerr << "Error: Cannot build B-Tree from empty data" << std::endl;
         return false;
@@ -44,7 +48,22 @@ bool BTreeSST::buildBTree(const std::vector<std::pair<int, int>>& sortedData, co
         ctx.treeHeight = 1;  // Single leaf root
     }
 
-    // Phase 4: Write metadata to disk
+    // Phase 4: Build and write bloom filter at end of file
+    std::cout << "Building bloom filter (" << bitsPerEntry << " bits/entry, " 
+              << hashCount << " hash functions)..." << std::endl;
+    std::vector<uint8_t> bloomFilter = buildBloomFilter(sortedData, bitsPerEntry, hashCount);
+    if (!writeBloomFilter(ctx.fd, bloomFilter)) {
+        std::cerr << "Error: Failed to write bloom filter" << std::endl;
+        return false;
+    }
+    std::cout << "  Bloom filter: " << bloomFilter.size() << " bytes" << std::endl;
+
+    // Store bloom filter metadata in context
+    ctx.bloomBits = sortedData.size() * bitsPerEntry;
+    ctx.bloomBytes = bloomFilter.size();
+    ctx.bloomHashCount = hashCount;
+
+    // Phase 5: Write metadata to disk (includes bloom filter metadata)
     // Pass sortedData.size() to calculate lastLeafPairs (needed since ctx doesn't store data size)
     bool success = writeMetadata(ctx, sortedData.size());
     
@@ -309,6 +328,11 @@ bool BTreeSST::writeMetadata(BuildContext& ctx, size_t dataSize) {
     metadataPage.lastLeafPairs = lastLeafPairs;
     metadataPage.rootPageId = 1; // Root is always at page 1
 
+    // Store bloom filter metadata
+    metadataPage.bloom_bits = ctx.bloomBits;
+    metadataPage.bloom_bytes = ctx.bloomBytes;
+    metadataPage.bloom_hash_count = ctx.bloomHashCount;
+
     Page page;
     if (!page.serialize(metadataPage)) {
         std::cerr << "Error: Failed to serialize metadata page" << std::endl;
@@ -386,6 +410,23 @@ bool BTreeSST::get(int key, int& value, const std::string& fileName, bool useBTr
     // Quick filter using minKey/maxKey
     if (key < metadata.minKey || key > metadata.maxKey) {
         return false;
+    }
+    
+    // Check bloom filter if available (early rejection)
+    if (metadata.bloom_bytes > 0) {
+        std::vector<uint8_t> bloomFilter;
+        if (readBloomFilter(fileName, metadata, bloomFilter)) {
+            // Check if key might be in the bloom filter
+            bool mightContain = true;
+            for (uint32_t i = 0; i < metadata.bloom_hash_count; i++) {
+                uint32_t position = bloomHash(key, i, metadata.bloom_bits);
+                if (!bloomFilterTestBit(bloomFilter, position)) {
+                    // Bloom filter says key is definitely not present
+                    return false;
+                }
+            }
+            // If we get here, bloom filter says key might be present (could be false positive)
+        }
     }
     
     if (useBTreeSearch) {
@@ -693,4 +734,122 @@ std::vector<std::pair<int, int>> BTreeSST::toSortedArray(const std::string& file
     // TODO: Implement in next phase
     std::cerr << "toSortedArray not yet implemented" << std::endl;
     return {};
+}
+
+// ===========================
+// Bloom Filter Operations
+// ===========================
+
+/**
+ * Hash function for bloom filter using double hashing
+ */
+uint32_t BTreeSST::bloomHash(int32_t key, uint32_t hashIndex, uint32_t numBits) {
+    // Use two different hash functions
+    uint32_t hash1 = std::hash<int32_t>{}(key);
+    uint32_t hash2 = std::hash<int32_t>{}(key ^ 0x9e3779b9);  // Mix with golden ratio
+    
+    // Double hashing: combine two hashes to create k different hash functions
+    uint64_t combined = hash1 + (static_cast<uint64_t>(hashIndex) * hash2);
+    return combined % numBits;
+}
+
+/**
+ * Check if a bit is set in the bloom filter
+ */
+bool BTreeSST::bloomFilterTestBit(const std::vector<uint8_t>& bloomFilter, uint32_t position) {
+    uint32_t byteIndex = position / 8;
+    uint32_t bitIndex = position % 8;
+    if (byteIndex >= bloomFilter.size()) return false;
+    return (bloomFilter[byteIndex] & (1 << bitIndex)) != 0;
+}
+
+/**
+ * Set a bit in the bloom filter
+ */
+void BTreeSST::bloomFilterSetBit(std::vector<uint8_t>& bloomFilter, uint32_t position) {
+    uint32_t byteIndex = position / 8;
+    uint32_t bitIndex = position % 8;
+    if (byteIndex < bloomFilter.size()) {
+        bloomFilter[byteIndex] |= (1 << bitIndex);
+    }
+}
+
+/**
+ * Build bloom filter from sorted data as a simple bit array
+ */
+std::vector<uint8_t> BTreeSST::buildBloomFilter(const std::vector<std::pair<int, int>>& sortedData,
+                                                 uint32_t bitsPerEntry,
+                                                 uint32_t hashCount) {
+    uint32_t numBits = sortedData.size() * bitsPerEntry;
+    uint32_t numBytes = (numBits + 7) / 8;  // Round up to bytes
+    
+    // Initialize bloom filter with all zeros
+    std::vector<uint8_t> bloomFilter(numBytes, 0);
+    
+    // Insert all keys into bloom filter
+    for (const auto& [key, value] : sortedData) {
+        for (uint32_t i = 0; i < hashCount; i++) {
+            uint32_t position = bloomHash(key, i, numBits);
+            bloomFilterSetBit(bloomFilter, position);
+        }
+    }
+    
+    return bloomFilter;
+}
+
+/**
+ * Write bloom filter to end of SST file
+ */
+bool BTreeSST::writeBloomFilter(int fd, const std::vector<uint8_t>& bloomFilter) {
+    // Seek to end of file and append bloom filter
+    off_t endOfFile = lseek(fd, 0, SEEK_END);
+    if (endOfFile < 0) {
+        std::cerr << "Error: Failed to seek to end of file" << std::endl;
+        return false;
+    }
+    
+    ssize_t written = write(fd, bloomFilter.data(), bloomFilter.size());
+    if (written != static_cast<ssize_t>(bloomFilter.size())) {
+        std::cerr << "Error: Failed to write bloom filter (wrote " << written << " bytes)" << std::endl;
+        return false;
+    }
+    
+    return true;
+}
+
+/**
+ * Read bloom filter from end of SST file
+ */
+bool BTreeSST::readBloomFilter(const std::string& fileName, const MetadataPage& metadata,
+                               std::vector<uint8_t>& bloomFilter) {
+    if (metadata.bloom_bytes == 0) {
+        return false;  // No bloom filter in this SST
+    }
+    
+    int fd = open(fileName.c_str(), O_RDONLY);
+    if (fd < 0) {
+        std::cerr << "Error: Cannot open file for reading bloom filter: " << fileName << std::endl;
+        return false;
+    }
+    
+    // Resize bloom filter to expected size
+    bloomFilter.resize(metadata.bloom_bytes);
+    
+    // Read bloom filter from end of file
+    off_t offset = lseek(fd, -static_cast<off_t>(metadata.bloom_bytes), SEEK_END);
+    if (offset < 0) {
+        std::cerr << "Error: Failed to seek to bloom filter location" << std::endl;
+        close(fd);
+        return false;
+    }
+    
+    ssize_t bytesRead = read(fd, bloomFilter.data(), metadata.bloom_bytes);
+    close(fd);
+    
+    if (bytesRead != static_cast<ssize_t>(metadata.bloom_bytes)) {
+        std::cerr << "Error: Failed to read bloom filter (read " << bytesRead << " bytes)" << std::endl;
+        return false;
+    }
+    
+    return true;
 }
