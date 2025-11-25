@@ -63,6 +63,8 @@ bool BTreeSST::buildBTree(const std::vector<std::pair<int, int>>& sortedData,
     ctx.bloomBytes = bloomFilter.size();
     ctx.bloomHashCount = hashCount;
 
+    ctx.leaf_start_page = 1 + ctx.totalInternalNodes; // Leaf nodes start after internal nodes
+
     // Phase 5: Write metadata to disk (includes bloom filter metadata)
     // Pass sortedData.size() to calculate lastLeafPairs (needed since ctx doesn't store data size)
     bool success = writeMetadata(ctx, sortedData.size());
@@ -332,6 +334,9 @@ bool BTreeSST::writeMetadata(BuildContext& ctx, size_t dataSize) {
     metadataPage.bloom_bits = ctx.bloomBits;
     metadataPage.bloom_bytes = ctx.bloomBytes;
     metadataPage.bloom_hash_count = ctx.bloomHashCount;
+
+    metadataPage.leaf_start_page = ctx.leaf_start_page;
+    metadataPage.total_number_of_pairs = static_cast<uint32_t>(dataSize);
 
     Page page;
     if (!page.serialize(metadataPage)) {
@@ -731,9 +736,40 @@ std::vector<std::pair<int, int>> BTreeSST::scan(int key1, int key2, const std::s
  * Convert SST to sorted array
  */
 std::vector<std::pair<int, int>> BTreeSST::toSortedArray(const std::string& fileName) {
-    // TODO: Implement in next phase
-    std::cerr << "toSortedArray not yet implemented" << std::endl;
-    return {};
+    // Read metadata first
+    MetadataPage metadata;
+    if (!readMetadata(fileName, metadata)) {
+        std::cerr << "Error: Failed to read metadata" << std::endl;
+        return {};
+    }
+
+    // Meta data has the number of pairs, we can start reading from the leaf start page and memcpy 
+    // till the number of pairs bytes, we should use an array because we know the size
+    uint32_t totalPairs = metadata.total_number_of_pairs;
+    std::vector<std::pair<int, int>> sortedData;
+    sortedData.reserve(totalPairs);
+    // fread from leaf start page
+    int fd = open(fileName.c_str(), O_RDONLY);
+    if (fd < 0) {
+        std::cerr << "Error: Cannot open file for reading: " << fileName << std::endl;
+        return {};
+    }
+    off_t leafDataStart = static_cast<off_t>(metadata.leaf_start_page) * Page::PAGE_SIZE;
+    size_t leafDataSize = totalPairs * 2 * sizeof(int32_t);
+    std::vector<int32_t> allLeafData(totalPairs * 2);
+    ssize_t bytesRead = pread(fd, allLeafData.data(), leafDataSize, leafDataStart);
+    close(fd);
+    if (bytesRead != static_cast<ssize_t>(leafDataSize)) {
+        std::cerr << "Error: Failed to read leaf data (read " << bytesRead << " bytes)" << std::endl;
+        return {};
+    }
+    // Convert interleaved data to vector of pairs
+    for (uint32_t i = 0; i < totalPairs; i++) {
+        int32_t key = allLeafData[i * 2];
+        int32_t value = allLeafData[i * 2 + 1];
+        sortedData.emplace_back(key, value);
+    }
+    return sortedData;
 }
 
 // ===========================

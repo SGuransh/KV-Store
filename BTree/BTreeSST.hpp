@@ -15,6 +15,9 @@
 #include <unistd.h>
 #endif
 
+
+//! Leaf index starts from 0
+
 /**
  * Context structure for passing build state between helper functions
  * This avoids having instance variables and makes the class stateless
@@ -39,6 +42,9 @@ struct BuildContext {
     uint32_t bloomBits;          // Total number of bits in bloom filter
     uint32_t bloomBytes;         // Total bytes allocated for bloom filter
     uint32_t bloomHashCount;     // Number of hash functions used
+
+    uint32_t leaf_start_page;   // Page ID where leaf nodes start
+    uint32_t total_number_of_pairs; // Total number of key-value pairs in the SST
     
     BuildContext(const std::string& fname) 
         : fileName(fname), fd(-1), leafNodeCount(0), internalLevelSizes(nullptr), internalLevelCount(0), totalInternalNodes(0),

@@ -51,6 +51,7 @@ struct MetadataPage {
     uint32_t bloom_hash_count;   // Number of hash functions used (k)
 
     uint32_t leaf_start_page;   // Page ID where leaf nodes start
+    uint32_t total_number_of_pairs; // Total number of key-value pairs in the SST
     
     static constexpr uint32_t MAGIC_NUMBER = 0xB7EE0000;
     
