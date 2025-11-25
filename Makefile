@@ -59,9 +59,9 @@ main: main.cpp $(SOURCES)
 # Rule for building test executables directly from test + sources
 $(OUT_DIR)/%: $(TEST_DIR)/%.cpp $(SOURCES)
 	@mkdir -p $(OUT_DIR)
-	@if [[ $* == *btree* ]]; then \
+	@if [[ $* == *btree* ]] || [[ $* == *bloom* ]]; then \
 		$(CXX) $(CXXFLAGS) -I. $< $(BTREE_SOURCES) -o $@; \
-	elif [[ $* == *merge* ]] || [[ $* == *compaction* ]]; then \
+	elif [[ $* == *merge* ]] || [[ $* == *compaction* ]] || [[ $* == *lsm* ]] || [[ $* == *sstmetadata* ]]; then \
 		$(CXX) $(CXXFLAGS) -I. $< $(LSM_SOURCES) -o $@; \
 	else \
 		$(CXX) $(CXXFLAGS) $< $(SOURCES) -o $@; \
@@ -73,7 +73,7 @@ test: test.cpp $(SOURCES)
 	@./test
 
 # Run B-Tree tests as part of default build
-test-btree-auto: test_btree_get test_btree_internal_levels test_btree_scan
+test-btree-auto: test_btree_get test_btree_internal_levels test_btree_scan test_bloom_filter
 	@echo ""
 	@echo "========================================="
 	@echo "       Running B-Tree Tests"
@@ -86,6 +86,9 @@ test-btree-auto: test_btree_get test_btree_internal_levels test_btree_scan
 	@echo ""
 	@echo "Running B-Tree Scan Tests..."
 	@./test_btree_scan
+	@echo ""
+	@echo "Running Bloom Filter Tests..."
+	@./test_bloom_filter
 	@echo "========================================="
 	@echo "       B-Tree Tests Completed"
 	@echo "========================================="
@@ -110,6 +113,9 @@ test_btree_internal_levels: tests/test_btree_internal_levels.cpp $(BTREE_SOURCES
 test_btree_scan: tests/test_btree_scan.cpp $(BTREE_SOURCES)
 	$(CXX) $(CXXFLAGS) -I. $^ -o $@
 
+test_bloom_filter: tests/test_bloom_filter.cpp $(BTREE_SOURCES)
+	$(CXX) $(CXXFLAGS) -I. $^ -o $@
+
 # FileOperations test target
 test_file_operations: tests/test_file_operations.cpp FileOperations.cpp $(BTREE_SOURCES)
 	$(CXX) $(CXXFLAGS) -I. $^ -o $@
@@ -128,7 +134,7 @@ test_sstmetadata: tests/test_sstmetadata.cpp $(LSM_SOURCES)
 	$(CXX) $(CXXFLAGS) -I. $^ -o $@
 
 # Run B-Tree tests
-test-btree: test_btree_get test_btree_internal_levels test_btree_scan
+test-btree: test_btree_get test_btree_internal_levels test_btree_scan test_bloom_filter
 	@echo "========================================="
 	@echo "       Running B-Tree Tests"
 	@echo "========================================="
@@ -140,6 +146,9 @@ test-btree: test_btree_get test_btree_internal_levels test_btree_scan
 	@echo ""
 	@echo "Running B-Tree Scan Tests..."
 	@./test_btree_scan
+	@echo ""
+	@echo "Running Bloom Filter Tests..."
+	@./test_bloom_filter
 	@echo "========================================="
 	@echo "       B-Tree Tests Completed"
 	@echo "========================================="
@@ -187,10 +196,11 @@ clean:
 	rm -rf $(C_DIR)
 	rm -rf test.exe
 	rm -rf *.o
-	rm -rf test_btree_get test_btree_internal_levels test_btree_scan test_file_operations
+	rm -rf test_btree_get test_btree_internal_levels test_btree_scan test_bloom_filter test_file_operations
 	rm -rf test_merge_algorithm test_mergebuffer test_compaction test_sstmetadata
 	rm -rf /tmp/btree_*
 	rm -rf test_dir_* test_file_* test_write_* test_atomic test_count_sst test_remove test_large_sst test_edge
 	rm -rf test_merge_* test_compaction_* test_cascade_* test_get_* test_scan_* test_update_* test_recovery_*
+	rm -rf *.sst
 
 .PHONY: all test clean test-individual main test-btree test-all test-file-operations test-lsm

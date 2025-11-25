@@ -36,7 +36,11 @@ void printStatus(const Database& db) {
 }
 
 int main() {
-    Database db(10);  // Create database with capacity of 1000
+    // Create database with:
+    // - Memtable capacity: 10 key-value pairs
+    // - Bloom filter: 10 bits per entry
+    // - Bloom filter: 3 hash functions
+    Database db(10, 10, 3);
     std::string line, command;
     
     std::cout << "\n╔═══════════════╗" << std::endl;

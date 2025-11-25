@@ -15,6 +15,9 @@
 #include <unistd.h>
 #endif
 
+
+//! Leaf index starts from 0
+
 /**
  * Context structure for passing build state between helper functions
  * This avoids having instance variables and makes the class stateless
@@ -35,9 +38,18 @@ struct BuildContext {
     uint32_t* nodesPerLevel;     // Number of nodes at each level
     uint32_t* lastNodeKeys;      // Number of keys/pairs in last node at each level
     
+    // Bloom filter metadata
+    uint32_t bloomBits;          // Total number of bits in bloom filter
+    uint32_t bloomBytes;         // Total bytes allocated for bloom filter
+    uint32_t bloomHashCount;     // Number of hash functions used
+
+    uint32_t leaf_start_page;   // Page ID where leaf nodes start
+    uint32_t total_number_of_pairs; // Total number of key-value pairs in the SST
+    
     BuildContext(const std::string& fname) 
         : fileName(fname), fd(-1), leafNodeCount(0), internalLevelSizes(nullptr), internalLevelCount(0), totalInternalNodes(0),
-          lastLeafPairs(0), nodesPerLevel(nullptr), lastNodeKeys(nullptr) {}
+          lastLeafPairs(0), nodesPerLevel(nullptr), lastNodeKeys(nullptr),
+          bloomBits(0), bloomBytes(0), bloomHashCount(0) {}
 
     ~BuildContext() {
         cleanup();
@@ -86,9 +98,14 @@ public:
      * Build B-Tree from sorted key-value pairs and write to disk
      * @param sortedData Vector of sorted key-value pairs
      * @param fileName The SST file to create
+     * @param bitsPerEntry Bits per entry for bloom filter (default: 10)
+     * @param hashCount Number of hash functions for bloom filter (default: 3)
      * @return true if successful, false otherwise
      */
-    bool buildBTree(const std::vector<std::pair<int, int>>& sortedData, const std::string& fileName);
+    bool buildBTree(const std::vector<std::pair<int, int>>& sortedData, 
+                    const std::string& fileName,
+                    uint32_t bitsPerEntry = 10,
+                    uint32_t hashCount = 3);
     
     /**
      * Point query - find value for a given key
@@ -149,8 +166,42 @@ public:
     bool writeMetadata(BuildContext& ctx, size_t dataSize);
     bool getBTreeSearch(int32_t key, int& value, const std::string& filename, const MetadataPage& metadata);
 
-private:
-    // === File Operations ===
+    // === Bloom Filter Operations (Public for testing) ===
+    
+    /**
+     * Build bloom filter from sorted data as a simple bit array
+     * @param sortedData Vector of sorted key-value pairs
+     * @param bitsPerEntry Number of bits to allocate per entry
+     * @param hashCount Number of hash functions to use
+     * @return Vector of bytes representing the bloom filter bit array
+     */
+    std::vector<uint8_t> buildBloomFilter(const std::vector<std::pair<int, int>>& sortedData,
+                                           uint32_t bitsPerEntry,
+                                           uint32_t hashCount);
+    
+    /**
+     * Hash function for bloom filter using double hashing
+     * @param key The key to hash
+     * @param hashIndex Which hash function (0 to k-1)
+     * @param numBits Total number of bits in bloom filter
+     * @return Bit position in the bloom filter
+     */
+    uint32_t bloomHash(int32_t key, uint32_t hashIndex, uint32_t numBits);
+    
+    /**
+     * Check if a bit is set in the bloom filter
+     * @param bloomFilter The bloom filter bit array
+     * @param position Bit position to check
+     * @return true if bit is set, false otherwise
+     */
+    bool bloomFilterTestBit(const std::vector<uint8_t>& bloomFilter, uint32_t position);
+    
+    /**
+     * Set a bit in the bloom filter
+     * @param bloomFilter The bloom filter bit array
+     * @param position Bit position to set
+     */
+    void bloomFilterSetBit(std::vector<uint8_t>& bloomFilter, uint32_t position);
     
     /**
      * Read metadata from SST file
@@ -159,6 +210,27 @@ private:
      * @return true if successful, false otherwise
      */
     bool readMetadata(const std::string& fileName, MetadataPage& metadata) const;
+
+private:
+    /**
+     * Write bloom filter to end of SST file
+     * @param fd File descriptor (must be open for writing)
+     * @param bloomFilter The bloom filter bit array
+     * @return true if successful, false otherwise
+     */
+    bool writeBloomFilter(int fd, const std::vector<uint8_t>& bloomFilter);
+    
+    /**
+     * Read bloom filter from end of SST file
+     * @param fileName The SST file to read
+     * @param metadata The metadata containing bloom filter info
+     * @param bloomFilter Output parameter for bloom filter bit array
+     * @return true if successful, false otherwise
+     */
+    bool readBloomFilter(const std::string& fileName, const MetadataPage& metadata, 
+                        std::vector<uint8_t>& bloomFilter);
+    
+    // === File Operations ===
     
     /**
      * Read a page from disk using pread
