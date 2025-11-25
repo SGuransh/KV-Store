@@ -118,6 +118,34 @@ test-file-operations: test_file_operations
 	@echo "  FileOperations Tests Completed"
 	@echo "========================================="
 
+# Search Order test target
+test_search_order: test_search_order.cpp $(SOURCES)
+	$(CXX) $(CXXFLAGS) $^ -o $@
+
+# Run Search Order test
+test-search-order: test_search_order
+	@echo "========================================="
+	@echo "     Running Search Order Test"
+	@echo "========================================="
+	@./test_search_order
+	@echo "========================================="
+	@echo "   Search Order Test Completed"
+	@echo "========================================="
+
+# User Scenario test target
+test_user_scenario: test_user_scenario.cpp $(SOURCES)
+	$(CXX) $(CXXFLAGS) $^ -o $@
+
+# Run User Scenario test
+test-user-scenario: test_user_scenario
+	@echo "========================================="
+	@echo "     Running User Scenario Test"
+	@echo "========================================="
+	@./test_user_scenario
+	@echo "========================================="
+	@echo "   User Scenario Test Completed"
+	@echo "========================================="
+
 # Clean up
 clean:
 	rm -rf $(OUT_DIR) test main
@@ -126,7 +154,9 @@ clean:
 	rm -rf test.exe
 	rm -rf *.o
 	rm -rf test_btree_get test_btree_internal_levels test_btree_scan test_file_operations
+	rm -rf test_search_order test_user_scenario
 	rm -rf /tmp/btree_*
 	rm -rf test_dir_* test_file_* test_write_* test_atomic test_count_sst test_remove test_large_sst test_edge
+	rm -rf user_test
 
 .PHONY: all test clean test-individual main test-btree test-all test-file-operations

@@ -5,6 +5,7 @@
 #include <chrono>
 #include <memory>
 #include <algorithm>
+#include <map>
 using namespace std;
 
     // int currentSize = 0;
@@ -356,8 +357,9 @@ using namespace std;
         // Create B-Tree SST instance for querying
         BTreeSST btree;
         
-        // Search through numbered SST files (1.txt, 2.txt, etc.)
-        for (int i = 1; i <= fileCount; i++) {
+        // Search through numbered SST files in REVERSE order (newest first)
+        // This ensures we get the most recent value for any key
+        for (int i = fileCount; i >= 1; i--) {
             std::string filename = databaseDirectory + "/" + std::to_string(i) + ".txt";
             if (FileOperations::file_exists(filename)) {
                 // Use B-Tree get function instead of reading entire file
@@ -374,26 +376,40 @@ using namespace std;
 
     // Method to perform range scan on SST files
     std::vector<std::pair<int, int>> AVL::range_scan_sst_files(int key1, int key2) {
-        std::vector<std::pair<int, int>> result;
-        
         if (databaseDirectory.empty()) {
-            return result;
+            return std::vector<std::pair<int, int>>();
         }
         
-        // Get count of SST files and search through them
+        // Get count of SST files
         int fileCount = FileOperations::count_sst_files(databaseDirectory);
         
         // Create B-Tree SST instance for querying
         BTreeSST btree;
         
-        // Search through numbered SST files (1.txt, 2.txt, etc.)
-        for (int i = 1; i <= fileCount; i++) {
+        // Map to store latest value for each key (newer SST files override older ones)
+        std::map<int, int> keyToLatestValue;
+        
+        // Search through numbered SST files in REVERSE order (newest first)
+        // This ensures that newer values override older ones for duplicate keys
+        for (int i = fileCount; i >= 1; i--) {
             std::string filename = databaseDirectory + "/" + std::to_string(i) + ".txt";
             if (FileOperations::file_exists(filename)) {
-                // Use B-Tree scan function instead of reading entire file
+                // Use B-Tree scan function to get results from this file
                 std::vector<std::pair<int, int>> fileResults = btree.scan(key1, key2, filename);
-                result.insert(result.end(), fileResults.begin(), fileResults.end());
+                
+                // Add results to map, only if key doesn't already exist (since we're going newest to oldest)
+                for (const auto& pair : fileResults) {
+                    if (keyToLatestValue.find(pair.first) == keyToLatestValue.end()) {
+                        keyToLatestValue[pair.first] = pair.second;
+                    }
+                }
             }
+        }
+        
+        // Convert map back to vector (will be sorted by key due to map properties)
+        std::vector<std::pair<int, int>> result;
+        for (const auto& pair : keyToLatestValue) {
+            result.push_back(pair);
         }
         
         return result;
