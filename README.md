@@ -9,7 +9,7 @@ g++ -std=c++17 -c AVL.cpp -o AVL.o
 g++ -std=c++17 -o test test.cpp
 ./test
 
-# Using Make File
+# Using Make File:
 
 make test # Run all tests
 make test_avl # Run only AVL tests  
