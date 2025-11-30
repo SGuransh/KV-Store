@@ -10,7 +10,7 @@
  * Constructor - allocate buffer with configurable size
  */
 MergeBuffer::MergeBuffer(size_t bufferSize)
-    : capacity(bufferSize), currentPos(0), validPairs(0) {
+    : capacity(bufferSize), validPairs(0), currentPos(0) {
     // Allocate interleaved array: each pair needs 2 int32_t elements
     buffer = new int32_t[capacity * 2];
     std::memset(buffer, 0, capacity * 2 * sizeof(int32_t));
@@ -30,12 +30,18 @@ MergeBuffer::~MergeBuffer() {
  * 
  * SST file structure:
  * - Page 0: Metadata
- * - Pages 1 to N: Internal nodes (if tree height > 1)
- * - Pages N+1 onwards: Leaf nodes with interleaved key-value pairs
+ * - Pages 1 to leaf_start_page-1: Internal nodes (if tree height > 1)
+ * - Pages leaf_start_page onwards: Leaf nodes with interleaved key-value pairs
+ * - End of file: Bloom filter
  * 
  * The leaf section is a continuous stream of [k1,v1, k2,v2, ...] across pages
+ * 
+ * IMPORTANT: fileOffset should initially be set to leaf_start_page * PAGE_SIZE
+ * to skip metadata and internal nodes
+ * 
+ * IMPORTANT: maxOffset should be set to the end of leaf data to avoid reading bloom filter
  */
-bool MergeBuffer::refillFromSST(const std::string& sstFile, size_t& fileOffset) {
+bool MergeBuffer::refillFromSST(const std::string& sstFile, size_t& fileOffset, size_t maxOffset) {
     // Open file for reading
     int fd = open(sstFile.c_str(), O_RDONLY);
     if (fd < 0) {
@@ -43,8 +49,21 @@ bool MergeBuffer::refillFromSST(const std::string& sstFile, size_t& fileOffset) 
         return false;
     }
     
+    // Check if we've reached the end of leaf data
+    if (fileOffset >= maxOffset) {
+        close(fd);
+        validPairs = 0;
+        currentPos = 0;
+        return false;
+    }
+    
     // Calculate how many bytes to read (capacity pairs * 2 elements * 4 bytes each)
     size_t bytesToRead = capacity * 2 * sizeof(int32_t);
+    
+    // Don't read past end of leaf data
+    if (fileOffset + bytesToRead > maxOffset) {
+        bytesToRead = maxOffset - fileOffset;
+    }
     
     // Read data from current file offset
     ssize_t bytesRead = pread(fd, buffer, bytesToRead, fileOffset);
@@ -56,7 +75,7 @@ bool MergeBuffer::refillFromSST(const std::string& sstFile, size_t& fileOffset) 
     }
     
     if (bytesRead == 0) {
-        // End of file reached
+        // End of leaf data reached
         validPairs = 0;
         currentPos = 0;
         return false;
