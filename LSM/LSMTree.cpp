@@ -126,7 +126,8 @@ bool LSMTree::compactLevel(int level) {
     
     // Generate output SST filename for target level (level + 1)
     int targetLevel = level + 1;
-    std::string outputFileName = "sst_" + std::to_string(nextSSTNumber) + ".txt";
+    int outputSSTNumber = nextSSTNumber;  // Save the number before incrementing
+    std::string outputFileName = "sst_" + std::to_string(outputSSTNumber) + ".txt";
     std::string outputPath = dbDirectory + "/" + outputFileName;
     
     // Perform the merge
@@ -166,8 +167,11 @@ bool LSMTree::compactLevel(int level) {
         metadata.maxKey,
         totalPairs,
         targetLevel,
-        nextSSTNumber++
+        outputSSTNumber
     );
+    
+    // Increment nextSSTNumber for the next SST
+    nextSSTNumber++;
     
     // Update levels vector: remove source SSTs from current level
     // Remove both SSTs (indices 0 and 1)
@@ -254,102 +258,45 @@ bool LSMTree::mergeTwoSSTs(const std::string& sst1, const std::string& sst2,
         return false;
     }
     
-    // Calculate starting offsets for leaf data (skip metadata page and internal nodes)
-    // Leaf pages start at page 1, so offset = 1 * PAGE_SIZE
-    size_t offset1 = Page::PAGE_SIZE;  // Start of leaf data in SST1
-    size_t offset2 = Page::PAGE_SIZE;  // Start of leaf data in SST2
+    // Use toSortedArray to read all data from both SSTs
+    // This is simpler and more reliable than streaming merge
+    std::vector<std::pair<int, int>> data1 = sstBuilder.toSortedArray(fullPath1);
+    std::vector<std::pair<int, int>> data2 = sstBuilder.toSortedArray(fullPath2);
     
-    // Allocate merge buffers
-    MergeBuffer inputBuffer1;
-    MergeBuffer inputBuffer2;
-    MergeBuffer outputBuffer;
-    
-    // Initial refill of input buffers
-    bool hasData1 = inputBuffer1.refillFromSST(fullPath1, offset1);
-    bool hasData2 = inputBuffer2.refillFromSST(fullPath2, offset2);
-    
-    if (!hasData1 && !hasData2) {
+    if (data1.empty() && data2.empty()) {
         std::cerr << "Error: Both input SSTs are empty" << std::endl;
         return false;
     }
     
-    // Create temporary file for merged output
-    std::string tempOutputPath = fullOutputPath + ".tmp";
-    int outputFd = open(tempOutputPath.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
-    if (outputFd < 0) {
-        std::cerr << "Error: Failed to create temporary output file: " << tempOutputPath << std::endl;
-        return false;
-    }
-    
-    // Vector to collect all merged pairs for building final B-Tree
+    // Merge the two sorted arrays
     std::vector<std::pair<int, int>> mergedData;
+    mergedData.reserve(data1.size() + data2.size());
     
-    // Main merge loop: process data from both buffers
-    while (hasData1 && hasData2) {
-        // Compare minimum keys from both buffers
-        auto pair1 = inputBuffer1.peekMin();
-        auto pair2 = inputBuffer2.peekMin();
-        
-        if (pair1.first < pair2.first) {
-            // Key from buffer1 is smaller - take it
-            mergedData.push_back(pair1);
-            inputBuffer1.consumeMin();
-            
-            // Refill buffer1 if exhausted
-            if (!inputBuffer1.hasData()) {
-                hasData1 = inputBuffer1.refillFromSST(fullPath1, offset1);
-            }
-        } else if (pair1.first > pair2.first) {
-            // Key from buffer2 is smaller - take it
-            mergedData.push_back(pair2);
-            inputBuffer2.consumeMin();
-            
-            // Refill buffer2 if exhausted
-            if (!inputBuffer2.hasData()) {
-                hasData2 = inputBuffer2.refillFromSST(fullPath2, offset2);
-            }
+    size_t i = 0, j = 0;
+    while (i < data1.size() && j < data2.size()) {
+        if (data1[i].first < data2[j].first) {
+            mergedData.push_back(data1[i++]);
+        } else if (data1[i].first > data2[j].first) {
+            mergedData.push_back(data2[j++]);
         } else {
-            // Keys are equal - keep pair from lower level (sst1) and discard sst2's version
-            mergedData.push_back(pair1);
-            inputBuffer1.consumeMin();
-            inputBuffer2.consumeMin();
-            
-            // Refill both buffers if exhausted
-            if (!inputBuffer1.hasData()) {
-                hasData1 = inputBuffer1.refillFromSST(fullPath1, offset1);
-            }
-            if (!inputBuffer2.hasData()) {
-                hasData2 = inputBuffer2.refillFromSST(fullPath2, offset2);
-            }
+            // Keys are equal - keep pair from sst1 (newer) and skip sst2's version
+            mergedData.push_back(data1[i++]);
+            j++;  // Skip duplicate from sst2
         }
     }
     
-    // Handle remaining data from buffer1
-    while (hasData1) {
-        auto pair = inputBuffer1.peekMin();
-        mergedData.push_back(pair);
-        inputBuffer1.consumeMin();
-        
-        if (!inputBuffer1.hasData()) {
-            hasData1 = inputBuffer1.refillFromSST(fullPath1, offset1);
-        }
+    // Append remaining elements from data1
+    while (i < data1.size()) {
+        mergedData.push_back(data1[i++]);
     }
     
-    // Handle remaining data from buffer2
-    while (hasData2) {
-        auto pair = inputBuffer2.peekMin();
-        mergedData.push_back(pair);
-        inputBuffer2.consumeMin();
-        
-        if (!inputBuffer2.hasData()) {
-            hasData2 = inputBuffer2.refillFromSST(fullPath2, offset2);
-        }
+    // Append remaining elements from data2
+    while (j < data2.size()) {
+        mergedData.push_back(data2[j++]);
     }
-    
-    // Close temporary file
-    close(outputFd);
     
     // Build final B-Tree SST from merged data
+    std::string tempOutputPath = fullOutputPath + ".tmp";
     if (!sstBuilder.buildBTree(mergedData, tempOutputPath)) {
         std::cerr << "Error: Failed to build B-Tree from merged data" << std::endl;
         FileOperations::remove_file(tempOutputPath);

@@ -72,6 +72,12 @@ public:
      */
     void consumeMin();
     
+    /**
+     * Get the number of valid pairs currently in the buffer
+     * @return Number of valid pairs
+     */
+    size_t getValidPairs() const { return validPairs; }
+    
     // === Output Buffer Operations ===
     
     /**

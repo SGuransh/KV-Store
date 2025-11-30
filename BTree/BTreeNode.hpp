@@ -59,7 +59,8 @@ struct MetadataPage {
         : magic(MAGIC_NUMBER), rootPageId(0), treeHeight(0), 
           leafCount(0), lastLeafPairs(0), 
           minKey(0), maxKey(0),
-          bloom_bits(0), bloom_bytes(0), bloom_hash_count(0) {
+          bloom_bits(0), bloom_bytes(0), bloom_hash_count(0),
+          leaf_start_page(0), total_number_of_pairs(0) {
         std::memset(nodesPerLevel, 0, sizeof(nodesPerLevel));
         std::memset(lastNodeKeys, 0, sizeof(lastNodeKeys));
     }
