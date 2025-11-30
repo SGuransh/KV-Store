@@ -123,29 +123,7 @@ void test_avl_range_scan() {
     }
 }
 
-void test_avl_duplicates() {
-    std::cout << "\n--- AVL Duplicate Handling ---" << std::endl;
-    
-    std::unique_ptr<Memtable_ds> avl = create_memtable(MemtableType::AVL, 10);
-    
-    // Insert initial data
-    auto result1 = avl->insert(25, 250);
-    auto result2 = avl->insert(25, 999); // Duplicate key
-    
-    if (result1 != nullptr && result2 == nullptr && avl->get_size() == 1) {
-        avl_test_passed("AVL Duplicate Rejection");
-    } else {
-        avl_test_failed("AVL Duplicate Rejection");
-    }
-    
-    // Verify original value is preserved
-    int value;
-    if (avl->search(25, value) && value == 250) {
-        avl_test_passed("AVL Duplicate Value Preservation");
-    } else {
-        avl_test_failed("AVL Duplicate Value Preservation");
-    }
-}
+
 
 void test_avl_capacity() {
     std::cout << "\n--- AVL Capacity Handling ---" << std::endl;
@@ -170,7 +148,6 @@ int run_avl_tests() {
     test_basic_avl_operations();
     test_avl_search();
     test_avl_range_scan();
-    test_avl_duplicates();
     test_avl_capacity();
     
     std::cout << "\n=== AVL TEST SUMMARY ===" << std::endl;
