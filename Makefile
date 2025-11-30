@@ -327,12 +327,12 @@ test-bufferpool-all: test_bufferpool_eviction test_page_locality
 # Clean up
 clean:
 	rm -rf $(OUT_DIR) test main
-	rm -rf test_db_* test_memtable_dir
+	rm -rf test_db_* test_memtable_dir test_bufferpool_db test_lsm_db
 	rm -rf test_btree_get test_btree_internal_levels test_btree_scan test_bloom_filter test_btree_bufferpool test_file_operations
 	rm -rf test.exe
 	rm -rf *.o
 	rm -rf test_btree_get test_btree_internal_levels test_btree_scan test_bloom_filter test_file_operations
-	rm -rf test_merge_algorithm test_mergebuffer test_compaction test_sstmetadata
+	rm -rf test_merge_algorithm test_mergebuffer test_compaction test_sstmetadata test_sst_check
 	rm -rf test_bufferpool_eviction test_page_locality test_lsm_bufferpool
 	rm -rf *.dSYM
 	rm -rf /tmp/btree_*
