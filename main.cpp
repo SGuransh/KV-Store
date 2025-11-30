@@ -10,6 +10,7 @@ void printHelp() {
     std::cout << "  open <db_name>          - Open/create a database" << std::endl;
     std::cout << "  close                   - Close current database" << std::endl;
     std::cout << "  insert <key> <value>    - Insert a key-value pair" << std::endl;
+    std::cout << "  seq <start> <end>       - Insert sequential K-V pairs that are identical" << std::endl;
     std::cout << "  search <key>            - Search for a key" << std::endl;
     std::cout << "  scan <key1> <key2>      - Range scan from key1 to key2" << std::endl;
     std::cout << "  size                    - Show current memtable size" << std::endl;
@@ -121,6 +122,36 @@ int main() {
                     std::cout << "✓ Inserted: " << key << " -> " << value << std::endl;
                 } else {
                     std::cout << "✗ Failed to insert key " << key << std::endl;
+                }
+            }
+            else if (command == "seq") {
+                if (!db.is_open()) {
+                    std::cout << "Error: No database is open. Use 'open <db_name>' first" << std::endl;
+                    continue;
+                }
+
+                int start, end;
+                if (!(iss >> start >> end)) {
+                    std::cout << "Error: Please provide both start and end values" << std::endl;
+                    std::cout << "Usage: seq <start> <end>" << std::endl;
+                    continue;
+                }
+
+                if (start > end) {
+                    std::cout << "Error: Start value must be less than or equal to end value" << std::endl;
+                    continue;
+                }
+
+                bool allInserted = true;
+                for (int k = start; k <= end; ++k) {
+                    if (!db.insert(k, k)) {
+                        std::cout << "✗ Failed to insert key " << k << std::endl;
+                        allInserted = false;
+                    }
+                }
+
+                if (allInserted) {
+                    std::cout << "✓ Inserted sequential keys from " << start << " to " << end << std::endl;
                 }
             }
             else if (command == "search") {
