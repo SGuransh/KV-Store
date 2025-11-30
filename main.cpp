@@ -10,7 +10,7 @@ void printHelp() {
     std::cout << "  open <db_name>          - Open/create a database" << std::endl;
     std::cout << "  close                   - Close current database" << std::endl;
     std::cout << "  insert <key> <value>    - Insert a key-value pair" << std::endl;
-    std::cout << "  seq <start> <end>       - Insert sequential K-V pairs that are identical" << std::endl;
+    std::cout << "  seq <start> <end> <step>      - Insert sequential K-V pairs that are identical" << std::endl;
     std::cout << "  search <key>            - Search for a key" << std::endl;
     std::cout << "  scan <key1> <key2>      - Range scan from key1 to key2" << std::endl;
     std::cout << "  size                    - Show current memtable size" << std::endl;
@@ -18,6 +18,7 @@ void printHelp() {
     std::cout << "  lsm                     - Show LSM tree structure" << std::endl;
     std::cout << "  compact <level>         - Manually compact a level" << std::endl;
     std::cout << "  help                    - Show this help message" << std::endl;
+    std::cout << "  clear                   - Clear the console screen" << std::endl;
     std::cout << "  exit                    - Exit the program" << std::endl;
     std::cout << "===================================" << std::endl;
 }
@@ -105,7 +106,7 @@ int main() {
                     std::cout << "✗ Database closed with errors" << std::endl;
                 }
             }
-            else if (command == "insert") {
+            else if (command == "insert" || command == "i") {
                 if (!db.is_open()) {
                     std::cout << "Error: No database is open. Use 'open <db_name>' first" << std::endl;
                     continue;
@@ -130,10 +131,10 @@ int main() {
                     continue;
                 }
 
-                int start, end;
-                if (!(iss >> start >> end)) {
+                int start, end, step = 1;
+                if (!(iss >> start >> end >> step)) {
                     std::cout << "Error: Please provide both start and end values" << std::endl;
-                    std::cout << "Usage: seq <start> <end>" << std::endl;
+                    std::cout << "Usage: seq <start> <end> <step>" << std::endl;
                     continue;
                 }
 
@@ -143,7 +144,7 @@ int main() {
                 }
 
                 bool allInserted = true;
-                for (int k = start; k <= end; ++k) {
+                for (int k = start; k <= end; k += step) {
                     if (!db.insert(k, k)) {
                         std::cout << "✗ Failed to insert key " << k << std::endl;
                         allInserted = false;
@@ -154,7 +155,7 @@ int main() {
                     std::cout << "✓ Inserted sequential keys from " << start << " to " << end << std::endl;
                 }
             }
-            else if (command == "search") {
+            else if (command == "search" || command == "s") {
                 if (!db.is_open()) {
                     std::cout << "Error: No database is open. Use 'open <db_name>' first" << std::endl;
                     continue;
@@ -237,6 +238,14 @@ int main() {
                 } else {
                     std::cout << "✗ Failed to compact level " << level << std::endl;
                 }
+            }
+            else if (command == "clear") {
+                // Clear the console screen
+                #ifdef _WIN32
+                    system("cls");
+                #else
+                    system("clear");
+                #endif
             }
             else {
                 std::cout << "Unknown command: " << command << std::endl;

@@ -425,6 +425,7 @@ bool BTreeSST::get(int key, int& value, const std::string& fileName, bool useBTr
                 uint32_t position = bloomHash(key, i, metadata.bloom_bits);
                 if (!bloomFilterTestBit(bloomFilter, position)) {
                     // Bloom filter says key is definitely not present
+                    std::cout << "\033[31m" << "Key " << key << " is definitely not present" << "\033[0m" << std::endl;
                     return false;
                 }
             }
