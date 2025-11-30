@@ -23,8 +23,6 @@ void print_section(const std::string& title) {
 void test_cache_hits_and_misses(Database& db) {
     print_section("TEST 1: Cache Hits and Misses");
     
-    int value;
-    
     // First scan - should be all MISSes
     std::cout << "\n--- First scan 5110-5130 (expect MISSes) ---\n";
     auto result1 = db.range_scan(5110, 5130);
@@ -89,9 +87,6 @@ void test_buffer_eviction(Database& db) {
     std::cout << "Now re-accessing first 5 ranges to verify evictions...\n\n";
     
     std::cout << "--- Phase 2: Re-access early ranges (should see MISSes proving eviction) ---\n";
-    
-    int totalMissesPhase2 = 0;
-    int totalHitsPhase2 = 0;
     
     // Re-access the first few ranges
     // If eviction is working, these should ALL be MISSes (pages were evicted)

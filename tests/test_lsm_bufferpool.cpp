@@ -55,6 +55,7 @@ void test_compaction_uses_bufferpool() {
             if (level >= 0) {  // Only count if actual compaction happened
                 foundCompactionTarget = true;
                 targetLevel = level;
+                (void)targetLevel;  // Mark as intentionally unused
                 std::cout << "Successfully compacted level " << level << std::endl;
                 break;
             }
