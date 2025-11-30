@@ -25,7 +25,8 @@ void printHelp() {
     std::cout << "  help                      - Show this help message" << std::endl;
     std::cout << "  clear                     - Clear the console screen" << std::endl;
     std::cout << "  exit                      - Exit the program" << std::endl;
-    std::cout << "  test <num_entries>        - Test insertion performance" << std::endl; 
+    std::cout << "  test <num_entries>        - Test insertion performance" << std::endl;
+    std::cout << "  benchmark                 - Run comprehensive performance benchmark" << std::endl;
     std::cout << "===================================" << std::endl;
 }
 
@@ -54,7 +55,7 @@ int main() {
     // - Memtable capacity: 10 key-value pairs
     // - Bloom filter: 10 bits per entry
     // - Bloom filter: 3 hash functions
-    Database db(2560, 10, 3);  // 4 mb
+    Database db(640, 10, 3);  // 1 mb
     std::string line, command;
     
     std::cout << "\n╔═══════════════╗" << std::endl;
@@ -355,6 +356,56 @@ int main() {
                 std::cout << "Cleaning up test database..." << std::endl;
                 system("rm -rf ron");
                 std::cout << "✓ Test database removed" << std::endl;
+            }
+            else if (command == "benchmark") {
+                std::cout << "\n╔═══════════════════════════════════════╗" << std::endl;
+                std::cout <<   "║  Running Comprehensive Benchmark...  ║" << std::endl;
+                std::cout <<   "╚═══════════════════════════════════════╝\n" << std::endl;
+
+                const long long test_sizes[] = {
+                    125000LL, 250000LL, 500000LL, 1000000LL, 2000000LL, 
+                    4000000LL, 8000000LL, 16000000LL, 32000000LL, 64000000LL,
+                    128000000LL, 256000000LL, 512000000LL, 1024000000LL
+                };
+
+                for (long long num_entries : test_sizes) {
+                    std::cout << "Testing with " << (num_entries / 1000000.0) << "M entries..." << std::flush;
+
+                    // Open test database
+                    if (!db.open_database("benchmark_test")) {
+                        std::cout << " ✗ Failed to open database" << std::endl;
+                        continue;
+                    }
+
+                    // Start timer
+                    auto start = std::chrono::high_resolution_clock::now();
+                    
+                    bool allInserted = true;
+                    for (long long k = 1; k <= num_entries; k++) {
+                        if (!db.insert(static_cast<int>(k), static_cast<int>(k))) {
+                            allInserted = false;
+                            break;
+                        }
+                    }
+
+                    // End timer
+                    auto end = std::chrono::high_resolution_clock::now();
+                    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+
+                    if (allInserted) {
+                        std::cout << " ✓ " << duration.count() << " ms (" 
+                                  << std::fixed << std::setprecision(2) << (duration.count() / 1000.0) 
+                                  << " seconds)" << std::endl;
+                    } else {
+                        std::cout << " ✗ Failed to insert all entries" << std::endl;
+                    }
+
+                    // Close and cleanup
+                    db.close_database();
+                    system("rm -rf benchmark_test");
+                }
+
+                std::cout << "\n✓ Benchmark complete!" << std::endl;
             }
             else if (command == "workmode") {
                 std::cout << "\n--- Verbose Mode Status ---" << std::endl;
