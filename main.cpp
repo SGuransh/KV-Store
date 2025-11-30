@@ -1,4 +1,5 @@
 #include "Database.hpp"
+#include "DBConfig.hpp"
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -19,6 +20,7 @@ void printHelp() {
     std::cout << "  lsm                       - Show LSM tree structure" << std::endl;
     std::cout << "  compact <level>           - Manually compact a level" << std::endl;
     std::cout << "  searchmode <btree|binary> - Set search mode (btree or binary)" << std::endl;
+    std::cout << "  workmode                  - Show current verbose mode status" << std::endl;
     std::cout << "  help                      - Show this help message" << std::endl;
     std::cout << "  clear                     - Clear the console screen" << std::endl;
     std::cout << "  exit                      - Exit the program" << std::endl;
@@ -37,6 +39,11 @@ void printStatus(const Database& db) {
         std::cout << "  Fill level: " << std::fixed << std::setprecision(1) << fill_percent << "%" << std::endl;
     }
     std::cout << "  Search mode: " << (db.getUseBTreeSearch() ? "B-Tree" : "Binary") << std::endl;
+    #if VERBOSE_MODE
+        std::cout << "  Verbose mode: Enabled (for max performance, disable in DBConfig.hpp)" << std::endl;
+    #else
+        std::cout << "  Verbose mode: Disabled (maximum performance)" << std::endl;
+    #endif
     std::cout << "----------------------" << std::endl;
 }
 
@@ -298,6 +305,25 @@ int main() {
                     std::cout << "Error: Invalid search mode '" << mode << "'" << std::endl;
                     std::cout << "Valid modes: btree, binary" << std::endl;
                 }
+            }
+            else if (command == "workmode") {
+                std::cout << "\n--- Verbose Mode Status ---" << std::endl;
+                #if VERBOSE_MODE
+                    std::cout << "  Current mode: VERBOSE (debug prints enabled)" << std::endl;
+                    std::cout << "  Performance: Standard" << std::endl;
+                    std::cout << "\n  To disable verbose output for maximum performance:" << std::endl;
+                    std::cout << "  1. Open DBConfig.hpp" << std::endl;
+                    std::cout << "  2. Change: #define VERBOSE_MODE 1  →  #define VERBOSE_MODE 0" << std::endl;
+                    std::cout << "  3. Recompile: make clean && make" << std::endl;
+                #else
+                    std::cout << "  Current mode: SILENT (debug prints disabled)" << std::endl;
+                    std::cout << "  Performance: Maximum" << std::endl;
+                    std::cout << "\n  To enable verbose output for debugging:" << std::endl;
+                    std::cout << "  1. Open DBConfig.hpp" << std::endl;
+                    std::cout << "  2. Change: #define VERBOSE_MODE 0  →  #define VERBOSE_MODE 1" << std::endl;
+                    std::cout << "  3. Recompile: make clean && make" << std::endl;
+                #endif
+                std::cout << "---------------------------" << std::endl;
             }
             else if (command == "clear") {
                 // Clear the console screen

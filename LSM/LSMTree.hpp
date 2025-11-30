@@ -76,11 +76,6 @@ public:
      * @return Next SST number
      */
     int getNextSSTNumber();
-
-    /**
-     * Print the current LSM tree structure (for debugging)
-     */
-    void printStructure() const;
     
     /**
      * Test method - expose mergeTwoSSTs for testing

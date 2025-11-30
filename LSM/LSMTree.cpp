@@ -2,6 +2,7 @@
 #include "../FileOperations.hpp"
 #include "../BTree/BTreeNode.hpp"
 #include "../BufferPool/Page.hpp"
+#include "../DBConfig.hpp"
 #include "MergeBuffer.hpp"
 #include <iostream>
 #include <fstream>
@@ -20,9 +21,9 @@ LSMTree::LSMTree(const std::string& directory)
     
     // Try to load existing manifest
     if (!loadManifest()) {
-        std::cout << "No existing manifest found, starting with empty LSM tree" << std::endl;
+        VERBOSE_PRINT("No existing manifest found, starting with empty LSM tree");
     } else {
-        std::cout << "Loaded LSM tree structure from manifest" << std::endl;
+        VERBOSE_PRINT("Loaded LSM tree structure from manifest");
     }
 }
 
@@ -68,7 +69,7 @@ bool LSMTree::loadManifest() {
         levels[sst.level].push_back(sst);
     }
     
-    std::cout << "Loaded " << allMetadata.size() << " SSTs from manifest" << std::endl;
+    VERBOSE_PRINT("Loaded " << allMetadata.size() << " SSTs from manifest");
     return true;
 }
 
@@ -121,8 +122,8 @@ bool LSMTree::compactLevel(int level) {
     SSTMetadata sst1 = levels[level][1];  // Newer SST
     SSTMetadata sst2 = levels[level][0];  // Older SST
     
-    std::cout << "Compacting Level " << level << ": merging " 
-              << sst1.fileName << " (newer) and " << sst2.fileName << " (older)" << std::endl;
+    VERBOSE_PRINT("Compacting Level " << level << ": merging " 
+              << sst1.fileName << " (newer) and " << sst2.fileName << " (older)");
     
     // Generate output SST filename for target level (level + 1)
     int targetLevel = level + 1;
@@ -186,7 +187,7 @@ bool LSMTree::compactLevel(int level) {
     // Add output SST to target level
     levels[targetLevel].push_back(outputMetadata);
     
-    std::cout << "Added merged SST " << outputFileName << " to Level " << targetLevel << std::endl;
+    VERBOSE_PRINT("Added merged SST " << outputFileName << " to Level " << targetLevel);
     
     // Delete source SST files from disk
     std::string fullPath1 = dbDirectory + "/" + sst1.fileName;
@@ -205,11 +206,11 @@ bool LSMTree::compactLevel(int level) {
         return false;
     }
     
-    std::cout << "Compaction of Level " << level << " completed successfully" << std::endl;
+    VERBOSE_PRINT("Compaction of Level " << level << " completed successfully");
     
     // Check if target level now needs compaction (cascade)
     if (needsCompaction(targetLevel)) {
-        std::cout << "Cascade compaction needed at Level " << targetLevel << std::endl;
+        VERBOSE_PRINT("Cascade compaction needed at Level " << targetLevel);
         return compactLevel(targetLevel);
     }
     
@@ -219,7 +220,7 @@ bool LSMTree::compactLevel(int level) {
 // Merge two SSTs using streaming algorithm with fixed-size buffers
 bool LSMTree::mergeTwoSSTs(const std::string& sst1, const std::string& sst2,
                            const std::string& outputSST, int targetLevel) {
-    std::cout << "Merging " << sst1 << " and " << sst2 << " into " << outputSST << std::endl;
+    VERBOSE_PRINT("Merging " << sst1 << " and " << sst2 << " into " << outputSST);
     
     // Build full paths
     std::string fullPath1 = dbDirectory + "/" + sst1;
@@ -271,12 +272,12 @@ bool LSMTree::mergeTwoSSTs(const std::string& sst1, const std::string& sst2,
     size_t maxOffset1 = offset1 + leafDataBytes1;
     size_t maxOffset2 = offset2 + leafDataBytes2;
     
-    std::cout << "SST1: leaf_start_page=" << meta1.leaf_start_page 
+    VERBOSE_PRINT("SST1: leaf_start_page=" << meta1.leaf_start_page 
               << ", leafCount=" << meta1.leafCount 
-              << ", total_pairs=" << meta1.total_number_of_pairs << std::endl;
-    std::cout << "SST2: leaf_start_page=" << meta2.leaf_start_page 
+              << ", total_pairs=" << meta1.total_number_of_pairs);
+    VERBOSE_PRINT("SST2: leaf_start_page=" << meta2.leaf_start_page 
               << ", leafCount=" << meta2.leafCount 
-              << ", total_pairs=" << meta2.total_number_of_pairs << std::endl;
+              << ", total_pairs=" << meta2.total_number_of_pairs);
     
     // Allocate merge buffers (2 input + 1 output)
     MergeBuffer inputBuffer1;
@@ -410,7 +411,7 @@ bool LSMTree::mergeTwoSSTs(const std::string& sst1, const std::string& sst2,
     // Close merge file
     close(mergeFd);
     
-    std::cout << "Merged " << totalMergedPairs << " pairs to temporary file" << std::endl;
+    VERBOSE_PRINT("Merged " << totalMergedPairs << " pairs to temporary file");
     
     // Now read the merged data back and build B-Tree SST
     // Read merged data from temporary file
@@ -461,7 +462,7 @@ bool LSMTree::mergeTwoSSTs(const std::string& sst1, const std::string& sst2,
         return false;
     }
     
-    std::cout << "Successfully merged " << totalMergedPairs << " pairs into " << outputSST << std::endl;
+    VERBOSE_PRINT("Successfully merged " << totalMergedPairs << " pairs into " << outputSST);
     return true;
 }
 
@@ -526,9 +527,9 @@ bool LSMTree::addSST(const std::string& sstFile, int level) {
     // Add to appropriate level
     levels[level].push_back(sstMetadata);
     
-    std::cout << "Added SST " << sstFile << " to Level " << level 
+    VERBOSE_PRINT("Added SST " << sstFile << " to Level " << level 
               << " [" << metadata.minKey << ", " << metadata.maxKey << "]"
-              << " (" << totalPairs << " pairs)" << std::endl;
+              << " (" << totalPairs << " pairs)");
     
     // Save updated manifest
     if (!saveManifest()) {
@@ -537,7 +538,7 @@ bool LSMTree::addSST(const std::string& sstFile, int level) {
     
     // Check if compaction is needed after adding SST
     if (needsCompaction(level)) {
-        std::cout << "Compaction needed at Level " << level << std::endl;
+        VERBOSE_PRINT("Compaction needed at Level " << level);
         // Trigger compaction for this level
         if (!compactLevel(level)) {
             std::cerr << "Warning: Compaction failed at Level " << level << std::endl;
@@ -622,22 +623,4 @@ std::vector<std::pair<int, int>> LSMTree::scan(int key1, int key2) {
 // Get next SST number
 int LSMTree::getNextSSTNumber() {
     return nextSSTNumber++;
-}
-
-// Print LSM tree structure
-void LSMTree::printStructure() const {
-    std::cout << "=== LSM Tree Structure ===" << std::endl;
-    std::cout << "Database Directory: " << dbDirectory << std::endl;
-    std::cout << "Next SST Number: " << nextSSTNumber << std::endl;
-    std::cout << "Number of Levels: " << levels.size() << std::endl;
-    
-    for (size_t i = 0; i < levels.size(); i++) {
-        std::cout << "Level " << i << ": " << levels[i].size() << " SSTs" << std::endl;
-        for (const auto& sst : levels[i]) {
-            std::cout << "  - " << sst.fileName 
-                     << " [" << sst.minKey << ", " << sst.maxKey << "]"
-                     << " (" << sst.numPairs << " pairs)" << std::endl;
-        }
-    }
-    std::cout << "=========================" << std::endl;
 }

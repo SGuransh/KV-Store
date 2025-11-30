@@ -1,6 +1,7 @@
 // #include "AVL.cpp"
 #include "Memtable_ds.hpp"
 #include "FileOperations.hpp"
+#include "DBConfig.hpp"
 #include <iostream>
 #include <limits>
 #include <map>
@@ -34,36 +35,36 @@
         std::string incompleteFile = databaseDirectory + "/incomplete.txt";
         
         if (!FileOperations::file_exists(incompleteFile)) {
-            std::cout << "No incomplete.txt file found" << std::endl;
+            VERBOSE_PRINT("No incomplete.txt file found");
             return true;
         }
 
-        std::cout << "Loading incomplete.txt file..." << std::endl;
+        VERBOSE_PRINT("Loading incomplete.txt file...");
         std::vector<std::pair<int, int>> data = FileOperations::read_sst_file(incompleteFile);
         
         if (data.empty()) {
-            std::cout << "Incomplete file is empty, removing it" << std::endl;
+            VERBOSE_PRINT("Incomplete file is empty, removing it");
             FileOperations::remove_file(incompleteFile);
             return true;
         }
 
         bool loadSuccess = engine->load_from_sst(data);
         if (loadSuccess) {
-            std::cout << "Successfully loaded " << data.size() << " entries from incomplete.txt" << std::endl;
+            VERBOSE_PRINT("Successfully loaded " << data.size() << " entries from incomplete.txt");
             FileOperations::remove_file(incompleteFile);
             return true;
         } else {
-            std::cout << "Failed to load data from incomplete.txt" << std::endl;
+            VERBOSE_PRINT("Failed to load data from incomplete.txt");
             return false;
         }
     }
 
 
     bool Database::open_database(const std::string& dbName) {
-        std::cout << "Opening database: " << dbName << std::endl;
+        VERBOSE_PRINT("Opening database: " << dbName);
 
         if (dbName.empty()) {
-            std::cout << "Error: Database name cannot be empty" << std::endl;
+            VERBOSE_PRINT("Error: Database name cannot be empty");  // Keep error
             return false;
         }
 
@@ -71,7 +72,7 @@
         for (char c : dbName) {
             if (c == '/' || c == '\\' || c == ':' || c == '*' || c == '?' || 
                 c == '"' || c == '<' || c == '>' || c == '|') {
-                std::cout << "Error: Database name contains invalid characters: " << dbName << std::endl;
+                VERBOSE_PRINT("Error: Database name contains invalid characters: " << dbName);  // Keep error
                 return false;
             }
         }
@@ -80,7 +81,7 @@
         databaseDirectory = databaseName;
 
         if (!FileOperations::create_directory(databaseDirectory)) {
-            std::cout << "Failed to create or access database directory: " << databaseDirectory << std::endl;
+            VERBOSE_PRINT("Error: Failed to create or access database directory: " << databaseDirectory);  // Keep error
             databaseName.clear();
             databaseDirectory.clear();
             return false;
@@ -95,14 +96,14 @@
         // Initialize LSMTree
         lsmTree = std::make_unique<LSMTree>(databaseDirectory);
         if (!lsmTree) {
-            std::cout << "Failed to initialize LSMTree" << std::endl;
+            VERBOSE_PRINT("Error: Failed to initialize LSMTree");  // Keep error
             databaseName.clear();
             databaseDirectory.clear();
             return false;
         }
 
         if (!load_incomplete_file()) {
-            std::cout << "Failed to load incomplete data" << std::endl;
+            VERBOSE_PRINT("Error: Failed to load incomplete data");  // Keep error
             databaseName.clear();
             databaseDirectory.clear();
             lsmTree.reset();
@@ -110,23 +111,23 @@
         }
 
         isOpen = true;
-        std::cout << "Successfully opened database: " << databaseName << " at directory: " << databaseDirectory << std::endl;
-        std::cout << "Found " << fileCount << " existing SST files, next file number: " << nextFileNumber << std::endl;
+        VERBOSE_PRINT("Successfully opened database: " << databaseName << " at directory: " << databaseDirectory);
+        VERBOSE_PRINT("Found " << fileCount << " existing SST files, next file number: " << nextFileNumber);
         return true;
     }
 
     bool Database::close_database() {
-        std::cout << "Closing database: " << databaseName << std::endl;
+        VERBOSE_PRINT("Closing database: " << databaseName);
 
         if (!isOpen || databaseName.empty()) {
-            std::cout << "No database is currently open" << std::endl;
+            VERBOSE_PRINT("No database is currently open");
             return true;
         }
 
         bool success = true;
 
         if (engine->get_size() > 0) {
-            std::cout << "Memtable contains " << engine->get_size() << " entries, flushing before close" << std::endl;
+            VERBOSE_PRINT("Memtable contains " << engine->get_size() << " entries, flushing before close");
             
             bool isComplete = (engine->get_size() == engine->get_max_elements());
             
@@ -146,31 +147,31 @@
                     // Build B-Tree SST from sorted memtable data with bloom filter
                     BTreeSST sstBuilder;
                     if (!sstBuilder.buildBTree(pairs, sstFullPath, bloomBitsPerEntry, bloomHashCount)) {
-                        std::cout << "Error: Failed to build B-Tree SST file during database close" << std::endl;
+                        VERBOSE_PRINT("Error: Failed to build B-Tree SST file during database close");
                         success = false;
                     } else {
-                        std::cout << "Successfully created SST file: " << sstFullPath << std::endl;
+                        VERBOSE_PRINT("Successfully created SST file: " << sstFullPath);
                         
                         // Add SST to LSMTree at Level 0 (pass just the filename)
                         if (!lsmTree->addSST(sstFileName, 0)) {
-                            std::cout << "Error: Failed to add SST to LSMTree during database close" << std::endl;
+                            VERBOSE_PRINT("Error: Failed to add SST to LSMTree during database close");
                             success = false;
                         } else {
-                            std::cout << "Successfully flushed complete memtable data to SST and added to LSMTree" << std::endl;
+                            VERBOSE_PRINT("Successfully flushed complete memtable data to SST and added to LSMTree");
                         }
                     }
                 }
             } else {
                 // For incomplete data, still use the old method to write to incomplete.txt
                 if (!engine->flush_to_sst(-1, false)) {
-                    std::cout << "Error: Failed to flush incomplete memtable data during database close" << std::endl;
+                    VERBOSE_PRINT("Error: Failed to flush incomplete memtable data during database close");
                     success = false;
                 } else {
-                    std::cout << "Successfully flushed incomplete memtable data to incomplete.txt" << std::endl;
+                    VERBOSE_PRINT("Successfully flushed incomplete memtable data to incomplete.txt");
                 }
             }
         } else {
-            std::cout << "Memtable is empty, no data to flush" << std::endl;
+            VERBOSE_PRINT("Memtable is empty, no data to flush");
         }
 
         // Clean up LSMTree
@@ -182,9 +183,9 @@
         nextFileNumber = 1;
 
         if (success) {
-            std::cout << "Database closed successfully" << std::endl;
+            VERBOSE_PRINT("Database closed successfully");
         } else {
-            std::cout << "Database closed with errors (data may have been lost)" << std::endl;
+            VERBOSE_PRINT("Database closed with errors (data may have been lost)");
         }
 
         return success;
@@ -193,21 +194,21 @@
     // Core database operations
     bool Database::insert(int key, int value) {
         if (!isOpen) {
-            std::cout << "Error: Database is not open" << std::endl;
+            VERBOSE_PRINT("Error: Database is not open");
             return false;
         }
         
         // Check if memtable is at capacity and needs to be flushed
         if (engine->get_size() >= engine->get_max_elements()) {
-            std::cout << "Memtable is at capacity (" << engine->get_size() << "/" 
-                      << engine->get_max_elements() << "), flushing to SST" << std::endl;
+            VERBOSE_PRINT("Memtable is at capacity (" << engine->get_size() << "/" 
+                      << engine->get_max_elements() << "), flushing to SST");
             
             // Collect all pairs from memtable
             std::vector<std::pair<int, int>> pairs = engine->range_scan(
                 std::numeric_limits<int>::min(), std::numeric_limits<int>::max());
             
             if (pairs.empty()) {
-                std::cout << "Warning: Memtable reported as full but no pairs collected" << std::endl;
+                VERBOSE_PRINT("Warning: Memtable reported as full but no pairs collected");
             } else {
                 // Get next SST number from LSMTree
                 int sstNumber = lsmTree->getNextSSTNumber();
@@ -219,19 +220,19 @@
                 // Build B-Tree SST from sorted memtable data with bloom filter
                 BTreeSST sstBuilder;
                 if (!sstBuilder.buildBTree(pairs, sstFullPath, bloomBitsPerEntry, bloomHashCount)) {
-                    std::cout << "Error: Failed to build B-Tree SST file" << std::endl;
+                    VERBOSE_PRINT("Error: Failed to build B-Tree SST file");
                     return false;
                 }
                 
-                std::cout << "Successfully created SST file: " << sstFullPath << std::endl;
+                VERBOSE_PRINT("Successfully created SST file: " << sstFullPath);
                 
                 // Add SST to LSMTree at Level 0 (pass just the filename)
                 if (!lsmTree->addSST(sstFileName, 0)) {
-                    std::cout << "Error: Failed to add SST to LSMTree" << std::endl;
+                    VERBOSE_PRINT("Error: Failed to add SST to LSMTree");
                     return false;
                 }
                 
-                std::cout << "Successfully added SST to LSMTree Level 0" << std::endl;
+                VERBOSE_PRINT("Successfully added SST to LSMTree Level 0");
                 
                 // Clear the memtable manually since we're bypassing the internal flush
                 // We need to create a new memtable instance
@@ -239,15 +240,15 @@
                 engine = create_memtable(MemtableType::AVL, maxElements);
                 engine->set_database_directory(databaseDirectory);
                 
-                std::cout << "Memtable cleared and ready for new insertions" << std::endl;
+                VERBOSE_PRINT("Memtable cleared and ready for new insertions");
                 
                 // Check if Level 0 needs compaction (2 or more SSTs)
                 if (lsmTree->needsCompaction(0)) {
-                    std::cout << "Level 0 has multiple SSTs, triggering compaction..." << std::endl;
+                    VERBOSE_PRINT("Level 0 has multiple SSTs, triggering compaction...");
                     if (lsmTree->compactLevel(0)) {
-                        std::cout << "Successfully compacted Level 0" << std::endl;
+                        VERBOSE_PRINT("Successfully compacted Level 0");
                     } else {
-                        std::cout << "Warning: Level 0 compaction failed" << std::endl;
+                        VERBOSE_PRINT("Warning: Level 0 compaction failed");
                     }
                 }
             }
@@ -262,7 +263,7 @@
 
     bool Database::search(int key, int& value) {
         if (!isOpen) {
-            std::cout << "Error: Database is not open" << std::endl;
+            VERBOSE_PRINT("Error: Database is not open");
             return false;
         }
         
@@ -277,7 +278,7 @@
 
     std::vector<std::pair<int, int>> Database::range_scan(int key1, int key2) {
         if (!isOpen) {
-            std::cout << "Error: Database is not open" << std::endl;
+            VERBOSE_PRINT("Error: Database is not open");
             return std::vector<std::pair<int, int>>();
         }
         
@@ -317,33 +318,24 @@
     bool Database::is_open() const { return isOpen; }
     std::string Database::get_database_name() const { return databaseName; }
 
-    // LSM operations
-    void Database::print_lsm_structure() const {
-        if (!isOpen || !lsmTree) {
-            std::cout << "Error: Database is not open" << std::endl;
-            return;
-        }
-        lsmTree->printStructure();
-    }
-
     bool Database::compact_level(int level) {
         if (!isOpen || !lsmTree) {
-            std::cout << "Error: Database is not open" << std::endl;
+            VERBOSE_PRINT("Error: Database is not open");
             return false;
         }
         
         if (!lsmTree->needsCompaction(level)) {
-            std::cout << "Level " << level << " does not need compaction" << std::endl;
+            VERBOSE_PRINT("Level " << level << " does not need compaction");
             return true;
         }
         
-        std::cout << "Compacting Level " << level << "..." << std::endl;
+        VERBOSE_PRINT("Compacting Level " << level << "...");
         bool success = lsmTree->compactLevel(level);
         
         if (success) {
-            std::cout << "Successfully compacted Level " << level << std::endl;
+            VERBOSE_PRINT("Successfully compacted Level " << level);
         } else {
-            std::cout << "Failed to compact Level " << level << std::endl;
+            VERBOSE_PRINT("Failed to compact Level " << level);
         }
         
         return success;

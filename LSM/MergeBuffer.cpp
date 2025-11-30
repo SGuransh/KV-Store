@@ -1,6 +1,7 @@
 #include "MergeBuffer.hpp"
 #include "../BTree/BTreeNode.hpp"
 #include "../BufferPool/Page.hpp"
+#include "../DBConfig.hpp"
 #include <fcntl.h>
 #include <unistd.h>
 #include <iostream>
