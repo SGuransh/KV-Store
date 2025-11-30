@@ -75,7 +75,7 @@ bool MergeBuffer::refillFromSST(const std::string& sstFile, size_t& fileOffset, 
             } else {
                 // Cache miss - load page from disk
                 Page newPage;
-                int fd = open(sstFile.c_str(), O_RDONLY);
+                int fd = open(sstFile.c_str(), O_RDONLY | O_DIRECT);
                 if (fd < 0) {
                     std::cerr << "Error: Cannot open SST file: " << sstFile << std::endl;
                     return false;
@@ -102,7 +102,7 @@ bool MergeBuffer::refillFromSST(const std::string& sstFile, size_t& fileOffset, 
         bytesRead = totalBytesRead;
     } else {
         // Fallback to direct pread if no BufferPool
-        int fd = open(sstFile.c_str(), O_RDONLY);
+        int fd = open(sstFile.c_str(), O_RDONLY | O_DIRECT);
         if (fd < 0) {
             std::cerr << "Error: Cannot open SST file for reading: " << sstFile << std::endl;
             return false;

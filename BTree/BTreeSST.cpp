@@ -84,7 +84,7 @@ void BTreeSST::calculateAndAllocateArrays(BuildContext& ctx, size_t dataSize) {
     VERBOSE_PRINT("  Leaf nodes: " << ctx.leafNodeCount << " (capacity: " << MAX_LEAF_PAIRS << " pairs each)");
     
     // Open file for writing (will write leaves directly)
-    ctx.fd = open(ctx.fileName.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    ctx.fd = open(ctx.fileName.c_str(), O_WRONLY | O_CREAT | O_TRUNC | O_DIRECT, 0644);
     if (ctx.fd < 0) {
         std::cerr << "Error: Cannot open file for writing: " << ctx.fileName << std::endl;
         return;
@@ -399,7 +399,7 @@ bool BTreeSST::readPage(const std::string& fileName, uint32_t pageId, Page& page
         }
         
         // Page not in buffer pool - read from disk and cache it
-        int fd = open(fileName.c_str(), O_RDONLY);
+        int fd = open(fileName.c_str(), O_RDONLY | O_DIRECT);
         if (fd < 0) {
             std::cerr << "Error: Cannot open file for reading: " << fileName << std::endl;
             return false;
@@ -424,7 +424,7 @@ bool BTreeSST::readPage(const std::string& fileName, uint32_t pageId, Page& page
     }
     
     // Fall back to direct I/O if no buffer pool
-    int fd = open(fileName.c_str(), O_RDONLY);
+    int fd = open(fileName.c_str(), O_RDONLY | O_DIRECT);
     if (fd < 0) {
         std::cerr << "Error: Cannot open file for reading: " << fileName << std::endl;
         return false;
@@ -644,7 +644,7 @@ bool BTreeSST::getBTreeSearch(int key, int& value, const std::string& fileName, 
  */
 bool BTreeSST::getBinarySearch(int key, int& value, const std::string& fileName, const MetadataPage& metadata) {
     // Binary search through all leaf data
-    int fd = open(fileName.c_str(), O_RDONLY);
+    int fd = open(fileName.c_str(), O_RDONLY | O_DIRECT);
     if (fd < 0) {
         return false;
     }
@@ -925,7 +925,7 @@ bool BTreeSST::readBloomFilter(const std::string& fileName, const MetadataPage& 
         return false;  // No bloom filter in this SST
     }
     
-    int fd = open(fileName.c_str(), O_RDONLY);
+    int fd = open(fileName.c_str(), O_RDONLY | O_DIRECT);
     if (fd < 0) {
         std::cerr << "Error: Cannot open file for reading bloom filter: " << fileName << std::endl;
         return false;

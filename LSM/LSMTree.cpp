@@ -295,7 +295,7 @@ bool LSMTree::mergeTwoSSTs(const std::string& sst1, const std::string& sst2,
     
     // Create temporary file for streaming merged data
     std::string tempMergePath = fullOutputPath + ".merge.tmp";
-    int mergeFd = open(tempMergePath.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    int mergeFd = open(tempMergePath.c_str(), O_WRONLY | O_CREAT | O_TRUNC | O_DIRECT, 0644);
     if (mergeFd < 0) {
         std::cerr << "Error: Failed to create temporary merge file: " << tempMergePath << std::endl;
         return false;
@@ -418,7 +418,7 @@ bool LSMTree::mergeTwoSSTs(const std::string& sst1, const std::string& sst2,
     std::vector<std::pair<int, int>> mergedData;
     mergedData.reserve(totalMergedPairs);
     
-    int readFd = open(tempMergePath.c_str(), O_RDONLY);
+    int readFd = open(tempMergePath.c_str(), O_RDONLY | O_DIRECT);
     if (readFd < 0) {
         std::cerr << "Error: Failed to open temporary merge file for reading" << std::endl;
         FileOperations::remove_file(tempMergePath);

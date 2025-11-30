@@ -46,7 +46,7 @@ void test_output_buffer_operations() {
     assert(buffer.append(99, 9900) == false);
     
     // Test flush to file
-    int fd = open("test_merge_output.txt", O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    int fd = open("test_merge_output.txt", O_WRONLY | O_CREAT | O_TRUNC | O_DIRECT, 0644);
     assert(fd >= 0);
     assert(buffer.flushToFile(fd) == true);
     close(fd);
@@ -166,7 +166,7 @@ void test_buffer_empty_behavior() {
     assert(!buffer.hasData());
     
     // Flush empty buffer should succeed
-    int fd = open("test_merge_output.txt", O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    int fd = open("test_merge_output.txt", O_WRONLY | O_CREAT | O_TRUNC | O_DIRECT, 0644);
     assert(fd >= 0);
     assert(buffer.flushToFile(fd) == true);
     close(fd);
@@ -197,7 +197,7 @@ void test_buffer_full_behavior() {
     assert(buffer.append(99, 990) == false);
     
     // Flush and clear
-    int fd = open("test_merge_output.txt", O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    int fd = open("test_merge_output.txt", O_WRONLY | O_CREAT | O_TRUNC | O_DIRECT, 0644);
     assert(fd >= 0);
     assert(buffer.flushToFile(fd) == true);
     close(fd);
