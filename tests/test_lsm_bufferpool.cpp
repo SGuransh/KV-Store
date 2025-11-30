@@ -43,7 +43,6 @@ void test_compaction_uses_bufferpool() {
     assert(db.open_database("test_lsm_db"));
     
     std::cout << "\n--- Current LSM Structure ---" << std::endl;
-    db.print_lsm_structure();
     
     // Find a level that needs compaction
     std::cout << "\n--- Checking for levels needing compaction ---" << std::endl;
@@ -72,7 +71,6 @@ void test_compaction_uses_bufferpool() {
         }
         
         std::cout << "\n--- LSM Structure after insertions ---" << std::endl;
-        db.print_lsm_structure();
         
         // Now try compaction again
         for (int level = 0; level < 10; level++) {
@@ -86,7 +84,6 @@ void test_compaction_uses_bufferpool() {
     }
     
     std::cout << "\n--- Final LSM Structure ---" << std::endl;
-    db.print_lsm_structure();
     
     std::cout << "\n=== BUFFERPOOL INTEGRATION VERIFIED ===" << std::endl;
     std::cout << "✓ Compaction completed using BufferPool for page reads" << std::endl;
