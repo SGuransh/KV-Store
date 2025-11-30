@@ -551,7 +551,7 @@ bool LSMTree::addSST(const std::string& sstFile, int level) {
 }
 
 // Point query - search levels in ascending order
-bool LSMTree::get(int key, int& value) {
+bool LSMTree::get(int key, int& value, bool useBTreeSearch) {
     // Search levels in ascending order (0, 1, 2, ...)
     // Level 0 contains the most recent data
     for (size_t levelIdx = 0; levelIdx < levels.size(); levelIdx++) {
@@ -564,9 +564,9 @@ bool LSMTree::get(int key, int& value) {
                 continue;  // Skip this SST - key not in range
             }
             
-            // Key might be in this SST - query it using BTreeSST::get (use B-Tree search)
+            // Key might be in this SST - query it using BTreeSST::get with specified search mode
             std::string fullPath = dbDirectory + "/" + sst.fileName;
-            if (sstBuilder.get(key, value, fullPath)) {  // Use B-Tree search (default)
+            if (sstBuilder.get(key, value, fullPath, useBTreeSearch)) {
                 // Found the key - return immediately (most recent version)
                 return true;
             }

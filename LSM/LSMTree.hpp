@@ -58,9 +58,10 @@ public:
      * Point query - find value for a given key
      * @param key The key to search for
      * @param value Output parameter for the value
+     * @param useBTreeSearch If true, use B-Tree search; if false, use binary search
      * @return true if key found, false otherwise
      */
-    bool get(int key, int& value);
+    bool get(int key, int& value, bool useBTreeSearch = true);
 
     /**
      * Range scan - find all key-value pairs in range [key1, key2]
