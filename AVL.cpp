@@ -190,8 +190,8 @@ using namespace std;
     }
 
     bool AVL::search(int key, int& value) {
-        // First search in memtable (verbose)
-        if (search_helper(root, key, value, true)) {
+        // First search in memtable (silent)
+        if (search_helper(root, key, value, false)) {
             return true;
         }
         // If not found in memtable, search in SST files
@@ -361,13 +361,11 @@ using namespace std;
             if (FileOperations::file_exists(filename)) {
                 // Use B-Tree get function instead of reading entire file
                 if (btree.get(key, value, filename)) {
-                    std::cout << "Key " << key << " found in SST file " << filename << " with value " << value << std::endl;
                     return true;
                 }
             }
         }
         
-        std::cout << "Key " << key << " not found in any SST files" << std::endl;
         return false;
     }
 
