@@ -19,7 +19,7 @@
     // int nextFileNumber;
 
     Database::Database(int memtableCapacity, uint32_t bitsPerEntry, uint32_t hashCount) 
-        : bloomBitsPerEntry(bitsPerEntry), bloomHashCount(hashCount) {
+        : bloomBitsPerEntry(bitsPerEntry), bloomHashCount(hashCount), useBTreeSearch(true) {
         // engine = new AVL(memtableCapacity);
         engine = create_memtable(MemtableType::AVL, memtableCapacity);
         
@@ -278,8 +278,8 @@
             return true;
         }
         
-        // If not found in memtable, query LSMTree
-        return lsmTree->get(key, value);
+        // If not found in memtable, query LSMTree with search mode preference
+        return lsmTree->get(key, value, useBTreeSearch);
     }
 
     std::vector<std::pair<int, int>> Database::range_scan(int key1, int key2) {

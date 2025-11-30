@@ -133,6 +133,7 @@ using namespace std;
         collect_all_pairs(node->right, pairs);
     }
 
+
     void delete_tree(Node* node) {
         if (node != nullptr) {
             delete_tree(node->left);
@@ -147,6 +148,20 @@ using namespace std;
             root = nullptr;
         }
         currentSize = 0;
+    }
+
+    int update_helper(Node* node, int key, int value) {
+        if (node == nullptr) {
+            return 0; // Key not found
+        }
+        if (key == node->key) {
+            node->value = value;
+            return 1; // Successfully updated
+        }
+        if (key < node->key) {
+            return update_helper(node->left, key, value);
+        }
+        return update_helper(node->right, key, value);
     }
 
 // -----------------------------------------------------------------------------------------------------------------------------------------------
@@ -182,8 +197,12 @@ using namespace std;
         std::cout << "Inserting key: " << key << " with value: " << value << endl;
         int dummy;
         if (search_helper(root, key, dummy, false)) { // Silent duplicate check
-            std::cout << "Error: Key " << key << " already exists in memtable." << endl;
-            return nullptr;
+            // std::cout << "Error: Key " << key << " already exists in memtable." << endl;
+            // return nullptr;
+            if (!update_helper(root, key, value)){
+                std::cout << "Error: Failed to update key " << key << " in memtable." << endl;
+            }
+            return root;
         }
         root = insert_helper(root, key, value, currentSize);
         return root;
@@ -216,7 +235,7 @@ using namespace std;
         inorder_helper(root, result);
         return result;
     }
-
+    
     Node* AVL::timed_insert(int key, int value, int& time) {
         auto start = std::chrono::high_resolution_clock::now();
         Node* result = insert(key, value);

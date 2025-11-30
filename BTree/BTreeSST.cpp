@@ -642,43 +642,45 @@ bool BTreeSST::getBTreeSearch(int key, int& value, const std::string& fileName, 
  * Binary search: search directly on leaf pages (for comparison)
  */
 bool BTreeSST::getBinarySearch(int key, int& value, const std::string& fileName, const MetadataPage& metadata) {
-    // Simple linear scan through leaf pages for testing
-    
-    // Calculate total pairs
-    uint32_t totalPairs = 0;
-    if (metadata.leafCount > 0) {
-        totalPairs = (metadata.leafCount - 1) * MAX_LEAF_PAIRS + metadata.lastLeafPairs;
+    // Binary search through all leaf data
+    int fd = open(fileName.c_str(), O_RDONLY);
+    if (fd < 0) {
+        return false;
     }
     
-    // Calculate total internal nodes (if tree height > 1)
-    uint32_t totalInternalNodes = 0;
-    if (metadata.treeHeight > 1) {
-        for (uint32_t i = 1; i < metadata.treeHeight; i++) {
-            totalInternalNodes += metadata.nodesPerLevel[i];
-        }
-    }
+    // Use total_number_of_pairs from metadata (more reliable)
+    uint32_t totalPairs = metadata.total_number_of_pairs;
     
-    // Read all leaf data using buffer pool
-    // Leaf pages start after metadata page (page 0) and internal nodes
+    // Use leaf_start_page from metadata (already calculated during build)
     size_t leafDataSize = totalPairs * 2 * sizeof(int32_t);
     int32_t* leafData = new int32_t[totalPairs * 2];
     
-    // Offset = metadata page + internal node pages
-    size_t leafOffset = (1 + totalInternalNodes) * Page::PAGE_SIZE;
-    ssize_t bytesRead = readBytesBuffered(fileName, leafOffset, leafData, leafDataSize);
+    // Offset = leaf_start_page * PAGE_SIZE
+    size_t leafOffset = static_cast<size_t>(metadata.leaf_start_page) * Page::PAGE_SIZE;
+    ssize_t bytesRead = pread(fd, leafData, leafDataSize, leafOffset);
+    close(fd);
     
     if (bytesRead != static_cast<ssize_t>(leafDataSize)) {
         delete[] leafData;
         return false;
     }
     
-    // Linear search through interleaved key-value pairs
-    for (uint32_t i = 0; i < totalPairs; i++) {
-        int32_t currentKey = leafData[i * 2];
-        if (currentKey == key) {
-            value = leafData[i * 2 + 1];
+    // Binary search through interleaved key-value pairs
+    int left = 0;
+    int right = totalPairs - 1;
+    
+    while (left <= right) {
+        int mid = left + (right - left) / 2;
+        int32_t midKey = leafData[mid * 2];
+        
+        if (midKey == key) {
+            value = leafData[mid * 2 + 1];
             delete[] leafData;
             return true;
+        } else if (midKey < key) {
+            left = mid + 1;
+        } else {
+            right = mid - 1;
         }
     }
     
