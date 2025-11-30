@@ -2,6 +2,30 @@
 #include <iostream>
 #include <cassert>
 #include <vector>
+#include <cstdlib>
+
+// Helper function to create test database
+void create_test_database() {
+    std::cout << "\n--- Setting up test database 'test_lsm_db' ---" << std::endl;
+    Database db(1000);
+    db.open_database("test_lsm_db");
+    
+    // Insert 10000 key-value pairs to create multiple SST files
+    std::cout << "Inserting 10000 key-value pairs..." << std::endl;
+    for (int i = 1; i <= 10000; i++) {
+        db.insert(i, i * 10);
+    }
+    
+    db.close_database();
+    std::cout << "Test database created successfully!" << std::endl;
+}
+
+// Helper function to remove test database
+void cleanup_test_database() {
+    std::cout << "\n--- Cleaning up test database ---" << std::endl;
+    system("rm -rf test_lsm_db");
+    std::cout << "Test database removed successfully!" << std::endl;
+}
 
 void test_compaction_uses_bufferpool() {
     std::cout << "\n=========================================" << std::endl;
@@ -15,8 +39,8 @@ void test_compaction_uses_bufferpool() {
     
     Database db(1000);
     
-    std::cout << "\n--- Opening existing database 'guransh' ---" << std::endl;
-    assert(db.open_database("guransh"));
+    std::cout << "\n--- Opening test database ---" << std::endl;
+    assert(db.open_database("test_lsm_db"));
     
     std::cout << "\n--- Current LSM Structure ---" << std::endl;
     db.print_lsm_structure();
@@ -83,7 +107,7 @@ void test_merge_buffer_cache_locality() {
     std::cout << "3. Repeat scans to demonstrate cache hits" << std::endl;
     
     Database db(1000);
-    assert(db.open_database("guransh"));
+    assert(db.open_database("test_lsm_db"));
     
     std::cout << "\n--- First scan: keys 5121-5500 ---" << std::endl;
     std::cout << "Expected: Cache MISSes on first access" << std::endl;
@@ -119,9 +143,9 @@ void test_large_scan_eviction() {
     std::cout << "Strategy: Scan entire database (~40+ pages) to trigger evictions" << std::endl;
     
     Database db(1000);
-    assert(db.open_database("guransh"));
+    assert(db.open_database("test_lsm_db"));
     
-    std::cout << "\n--- Phase 1: Scan small range in sst_2302 ---" << std::endl;
+    std::cout << "\n--- Phase 1: Scan small range ---" << std::endl;
     auto result1 = db.range_scan(5121, 5200);
     std::cout << "Scanned " << result1.size() << " keys from sst_2302" << std::endl;
     
@@ -150,11 +174,21 @@ int main() {
     std::cout << "\n╔═══════════════════════════════════════════════════════════╗" << std::endl;
     std::cout << "║     LSM BufferPool Integration Test Suite               ║" << std::endl;
     std::cout << "╚═══════════════════════════════════════════════════════════╝" << std::endl;
+    std::cout << "\nBuffer: 10 pages (40,960 bytes)" << std::endl;
+    std::cout << "Eviction: CLOCK algorithm" << std::endl;
+    std::cout << "\nTesting: Compaction, MergeBuffer, and large scan operations" << std::endl;
     
     try {
+        // Setup: Create test database
+        create_test_database();
+        
+        // Run tests
         test_compaction_uses_bufferpool();
         test_merge_buffer_cache_locality();
         test_large_scan_eviction();
+        
+        // Cleanup: Remove test database
+        cleanup_test_database();
         
         std::cout << "\n╔═══════════════════════════════════════════════════════════╗" << std::endl;
         std::cout << "║              ALL LSM BUFFERPOOL TESTS PASSED! ✓          ║" << std::endl;

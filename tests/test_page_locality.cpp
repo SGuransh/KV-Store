@@ -2,9 +2,34 @@
 #include <iostream>
 #include <cassert>
 #include <cstddef>
+#include <cstdlib>
+#include <sys/stat.h>
 
 // Page size constant (must match BufferPool/Page.hpp)
 static constexpr size_t PAGE_SIZE = 4096;
+
+// Helper function to create test database
+void create_test_database() {
+    std::cout << "\n--- Setting up test database 'test_bufferpool_db' ---" << std::endl;
+    Database db(1000);
+    db.open_database("test_bufferpool_db");
+    
+    // Insert 10000 key-value pairs to create multiple SST files
+    std::cout << "Inserting 10000 key-value pairs..." << std::endl;
+    for (int i = 1; i <= 10000; i++) {
+        db.insert(i, i * 10);
+    }
+    
+    db.close_database();
+    std::cout << "Test database created successfully!" << std::endl;
+}
+
+// Helper function to remove test database
+void cleanup_test_database() {
+    std::cout << "\n--- Cleaning up test database ---" << std::endl;
+    system("rm -rf test_bufferpool_db");
+    std::cout << "Test database removed successfully!" << std::endl;
+}
 
 void test_adjacent_keys_same_page() {
     std::cout << "\n=========================================" << std::endl;
@@ -12,11 +37,11 @@ void test_adjacent_keys_same_page() {
     std::cout << "=========================================" << std::endl;
     std::cout << "Goal: Demonstrate that keys stored close together in the same page" << std::endl;
     std::cout << "      cause cache HITs (no need to reload the page)" << std::endl;
-    std::cout << "\nFile: guransh/sst_2302.txt (31,872 bytes)" << std::endl;
+    std::cout << "\nUsing test database with SST files" << std::endl;
     std::cout << "Pages: 0-4095 (page 0), 4096-8191 (page 1), 8192-12287 (page 2), etc." << std::endl;
     
     Database db(1000);
-    assert(db.open_database("guransh"));
+    assert(db.open_database("test_bufferpool_db"));
     
     int value;
     
@@ -58,7 +83,7 @@ void test_distant_keys_different_pages() {
     std::cout << "      in different pages, causing cache MISSes" << std::endl;
     
     Database db(1000);
-    assert(db.open_database("guransh"));
+    assert(db.open_database("test_bufferpool_db"));
     
     int value;
     
@@ -101,21 +126,19 @@ void test_eviction_with_calculated_pages() {
     std::cout << "Strategy: Access keys from sst_2302.txt (6 pages), then sst_2685.txt (4 pages)" << std::endl;
     std::cout << "          Total: 10 pages fill buffer. Then access sst_2876.txt to force eviction" << std::endl;
     std::cout << "\nSST Files and Key Ranges:" << std::endl;
-    std::cout << "  sst_2302.txt: keys 5121-7680 (31KB = 6 pages)" << std::endl;
-    std::cout << "  sst_2685.txt: keys 7681-8960 (20KB = 4 pages)" << std::endl;
-    std::cout << "  sst_2876.txt: keys 8961-9600 (14KB = 3 pages)" << std::endl;
+    std::cout << "  sst files with various key ranges" << std::endl;
     
     Database db(1000);
-    assert(db.open_database("guransh"));
+    assert(db.open_database("test_bufferpool_db"));
     
     int value;
     
-    std::cout << "\n--- Phase 1: Access sst_2302 (6 pages) ---" << std::endl;
-    std::cout << "Accessing key 5121 (start of sst_2302.txt)" << std::endl;
-    std::cout << "Expected: 6 Cache MISSes - loads 6 B-tree pages" << std::endl;
+    std::cout << "\n--- Phase 1: Access large key range (loads multiple pages) ---" << std::endl;
+    std::cout << "Accessing key 5121" << std::endl;
+    std::cout << "Expected: Cache MISSes - loads B-tree pages" << std::endl;
     bool found1 = db.search(5121, value);
     assert(found1);
-    std::cout << "✓ Found key 5121, buffer now has 6/10 pages" << std::endl;
+    std::cout << "✓ Found key 5121, pages loaded into buffer" << std::endl;
     
     std::cout << "\n--- Phase 2: Access adjacent key in sst_2302 ---" << std::endl;
     std::cout << "Accessing key 5122 (adjacent to 5121)" << std::endl;
@@ -175,16 +198,16 @@ void test_access_pattern_with_hits_and_misses() {
     std::cout << "Keys per page: ~512 keys (8 leaf nodes per 4KB page)" << std::endl;
     
     Database db(1000);
-    assert(db.open_database("guransh"));
+    assert(db.open_database("test_bufferpool_db"));
     
     int value;
     
     std::cout << "\n--- Scenario 1: Keys within same leaf page ---" << std::endl;
     std::cout << "Testing keys 5121-5130 (should be in same leaf node)" << std::endl;
     
-    std::cout << "\n1. Access key 5121 (first access to sst_2302)" << std::endl;
+    std::cout << "\n1. Access key 5121 (first access to SST files)" << std::endl;
     assert(db.search(5121, value));
-    std::cout << "   Loaded 6 B-tree pages into buffer (6/10 pages used)" << std::endl;
+    std::cout << "   Loaded B-tree pages into buffer" << std::endl;
     
     std::cout << "\n2. Access key 5122 (adjacent, same leaf)" << std::endl;
     std::cout << "   Expected: All Cache HITs" << std::endl;
@@ -234,10 +257,17 @@ int main() {
     std::cout << "Eviction Policy: CLOCK (second-chance algorithm)" << std::endl;
     
     try {
+        // Setup: Create test database with 10000 keys
+        create_test_database();
+        
+        // Run tests
         test_adjacent_keys_same_page();
         test_distant_keys_different_pages();
         test_eviction_with_calculated_pages();
         test_access_pattern_with_hits_and_misses();
+        
+        // Cleanup: Remove test database
+        cleanup_test_database();
         
         std::cout << "\n╔═══════════════════════════════════════════════════════════╗" << std::endl;
         std::cout << "║                  ALL TESTS PASSED! ✓                     ║" << std::endl;
