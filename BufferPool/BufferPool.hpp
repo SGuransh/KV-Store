@@ -33,7 +33,7 @@ public:
     /**
      * Destructor
      */
-    ~BufferPool() = default;
+    virtual ~BufferPool() = default;
 
     /**
      * Disable copy constructor and assignment operator to prevent accidental copying
@@ -48,7 +48,7 @@ public:
      * @param id The PageID of the page to retrieve
      * @return Pointer to the Page if found, nullptr otherwise
      */
-    Page* getPage(const PageID& id);
+    virtual Page* getPage(const PageID& id);
 
     /**
      * Insert a page into the buffer pool
@@ -57,7 +57,7 @@ public:
      * @param pageData The Page data to insert
      * @return true if insertion was successful, false otherwise
      */
-    bool putPage(const PageID& id, const Page& pageData);
+    virtual bool putPage(const PageID& id, const Page& pageData);
 
     /**
      * Remove a page from the buffer pool by PageID
@@ -65,7 +65,7 @@ public:
      * @param id The PageID of the page to remove
      * @return true if the page was found and removed, false otherwise
      */
-    bool removePage(const PageID& id);
+    virtual bool removePage(const PageID& id);
 
     /**
      * Get the current number of pages in the buffer pool

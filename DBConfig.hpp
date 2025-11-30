@@ -9,8 +9,8 @@
 // ============================================
 
 // Page Size Configuration
-// constexpr int DB_PAGE_SIZE = 4096;
-constexpr int DB_PAGE_SIZE = 64;
+constexpr int DB_PAGE_SIZE = 4096;
+// constexpr int DB_PAGE_SIZE = 64;
 
 // ============================================
 // Verbose Mode Configuration

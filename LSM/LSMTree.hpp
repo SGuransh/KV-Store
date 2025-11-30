@@ -8,6 +8,7 @@
 #include <memory>
 #include "SSTMetadata.hpp"
 #include "../BTree/BTreeSST.hpp"
+#include "../BufferPool/BufferPool.hpp"
 
 /**
  * LSMTree - Log-Structured Merge Tree with fixed size ratio of 2
@@ -38,8 +39,9 @@ public:
     /**
      * Constructor - Initialize LSMTree for a database directory
      * @param directory Path to the database directory
+     * @param pool Optional BufferPool pointer for caching (default: nullptr)
      */
-    LSMTree(const std::string& directory);
+    LSMTree(const std::string& directory, BufferPool* pool = nullptr);
     
     /**
      * Destructor - Cleanup resources

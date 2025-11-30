@@ -13,8 +13,8 @@
 #include <unistd.h>
 
 // Constructor
-LSMTree::LSMTree(const std::string& directory) 
-    : dbDirectory(directory), nextSSTNumber(1) {
+LSMTree::LSMTree(const std::string& directory, BufferPool* pool) 
+    : dbDirectory(directory), sstBuilder(pool), nextSSTNumber(1) {
     
     // Initialize empty levels vector
     levels.clear();
@@ -279,10 +279,10 @@ bool LSMTree::mergeTwoSSTs(const std::string& sst1, const std::string& sst2,
               << ", leafCount=" << meta2.leafCount 
               << ", total_pairs=" << meta2.total_number_of_pairs);
     
-    // Allocate merge buffers (2 input + 1 output)
-    MergeBuffer inputBuffer1;
-    MergeBuffer inputBuffer2;
-    MergeBuffer outputBuffer;
+    // Allocate merge buffers (2 input + 1 output) with BufferPool support
+    MergeBuffer inputBuffer1(MergeBuffer::DEFAULT_BUFFER_SIZE, sstBuilder.getBufferPool());
+    MergeBuffer inputBuffer2(MergeBuffer::DEFAULT_BUFFER_SIZE, sstBuilder.getBufferPool());
+    MergeBuffer outputBuffer(MergeBuffer::DEFAULT_BUFFER_SIZE, sstBuilder.getBufferPool());
     
     // Initial refill of input buffers
     bool hasData1 = inputBuffer1.refillFromSST(fullPath1, offset1, maxOffset1);
