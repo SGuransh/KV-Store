@@ -209,7 +209,6 @@ int main() {
     }
     
     std::cout << "Database opened successfully\n";
-    db.print_lsm_structure();
     
     // Run tests
     try {
