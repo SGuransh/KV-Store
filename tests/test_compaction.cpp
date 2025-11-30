@@ -48,7 +48,6 @@ void test_needs_compaction() {
     assert(lsm.addSST("sst_2.txt", 0) == true);
     
     // After compaction, Level 0 should have 0 SSTs and Level 1 should have 1 SST
-    lsm.printStructure();
     
     cleanup_test_directory(testDir);
     
@@ -84,14 +83,12 @@ void test_compaction_cascade() {
     assert(lsm.addSST("sst_2.txt", 0) == true);
     
     std::cout << "After first compaction:" << std::endl;
-    lsm.printStructure();
     
     // Next two will compact to Level 1, then cascade to Level 2
     assert(lsm.addSST("sst_3.txt", 0) == true);
     assert(lsm.addSST("sst_4.txt", 0) == true);
     
     std::cout << "After cascade compaction:" << std::endl;
-    lsm.printStructure();
     
     cleanup_test_directory(testDir);
     
@@ -134,8 +131,6 @@ void test_get_operation() {
     assert(lsm.addSST("sst_old1.txt", 2) == true);  // Level 2 (oldest)
     assert(lsm.addSST("sst_old2.txt", 2) == true);  // Level 2 (oldest)
     assert(lsm.addSST("sst_new.txt", 0) == true);  // Level 0 (newest)
-    
-    lsm.printStructure();
     
     // Test get operations
     int value;
@@ -200,8 +195,6 @@ void test_scan_operation() {
     assert(lsm.addSST("sst_old1.txt", 2) == true);  // Level 2 (oldest)
     assert(lsm.addSST("sst_old2.txt", 2) == true);  // Level 2 (oldest)
     assert(lsm.addSST("sst_new.txt", 0) == true);  // Level 0 (newest)
-    
-    lsm.printStructure();
     
     // Test scan operation
     auto results = lsm.scan(5, 12);
@@ -317,7 +310,6 @@ void test_manifest_recovery() {
         assert(lsm.addSST("sst_c.txt", 0) == true);
         
         std::cout << "  Database structure before close:" << std::endl;
-        lsm.printStructure();
         
         // Verify data is accessible
         int value;
@@ -334,7 +326,6 @@ void test_manifest_recovery() {
         LSMTree lsm(testDir);
         
         std::cout << "  Database structure after reopen:" << std::endl;
-        lsm.printStructure();
         
         // Verify all data is still accessible
         int value;

@@ -43,7 +43,6 @@ public:
     std::vector<std::pair<int, int>> range_scan(int key1, int key2);
     
     // LSM operations
-    void print_lsm_structure() const;
     bool compact_level(int level);
 
     // Bloom filter getters

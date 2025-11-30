@@ -1,4 +1,5 @@
 #include "BTreeSST.hpp"
+#include "../DBConfig.hpp"
 #include "../BufferPool/BufferPool.hpp"
 #include "../BufferPool/PageID.hpp"
 #include <fcntl.h>
@@ -20,7 +21,7 @@ bool BTreeSST::buildBTree(const std::vector<std::pair<int, int>>& sortedData,
         return false;
     }
     
-    std::cout << "Building B-Tree SST with " << sortedData.size() << " key-value pairs..." << std::endl;
+    VERBOSE_PRINT("Building B-Tree SST with " << sortedData.size() << " key-value pairs...");
     
     // Create build context
     BuildContext ctx(fileName);
@@ -51,14 +52,14 @@ bool BTreeSST::buildBTree(const std::vector<std::pair<int, int>>& sortedData,
     }
 
     // Phase 4: Build and write bloom filter at end of file
-    std::cout << "Building bloom filter (" << bitsPerEntry << " bits/entry, " 
-              << hashCount << " hash functions)..." << std::endl;
+    VERBOSE_PRINT("Building bloom filter (" << bitsPerEntry << " bits/entry, " 
+              << hashCount << " hash functions)...");
     std::vector<uint8_t> bloomFilter = buildBloomFilter(sortedData, bitsPerEntry, hashCount);
     if (!writeBloomFilter(ctx.fd, bloomFilter)) {
         std::cerr << "Error: Failed to write bloom filter" << std::endl;
         return false;
     }
-    std::cout << "  Bloom filter: " << bloomFilter.size() << " bytes" << std::endl;
+    VERBOSE_PRINT("  Bloom filter: " << bloomFilter.size() << " bytes");
 
     // Store bloom filter metadata in context
     ctx.bloomBits = sortedData.size() * bitsPerEntry;
@@ -80,7 +81,7 @@ bool BTreeSST::buildBTree(const std::vector<std::pair<int, int>>& sortedData,
 void BTreeSST::calculateAndAllocateArrays(BuildContext& ctx, size_t dataSize) {
     // Calculate number of leaf nodes needed
     ctx.leafNodeCount = (dataSize + MAX_LEAF_PAIRS - 1) / MAX_LEAF_PAIRS;
-    std::cout << "  Leaf nodes: " << ctx.leafNodeCount << " (capacity: " << MAX_LEAF_PAIRS << " pairs each)" << std::endl;
+    VERBOSE_PRINT("  Leaf nodes: " << ctx.leafNodeCount << " (capacity: " << MAX_LEAF_PAIRS << " pairs each)");
     
     // Open file for writing (will write leaves directly)
     ctx.fd = open(ctx.fileName.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
@@ -98,7 +99,7 @@ void BTreeSST::calculateAndAllocateArrays(BuildContext& ctx, size_t dataSize) {
         // Tree height of 1 means: 0 internal levels + 1 leaf level = single root leaf
         // This ensures metadata is complete even for single-leaf trees
         ctx.treeHeight = 1;
-        std::cout << "  Tree height: 1 (single leaf root)" << std::endl;
+        VERBOSE_PRINT("  Tree height: 1 (single leaf root)");
         return;
     }
     else{
@@ -125,17 +126,17 @@ void BTreeSST::calculateAndAllocateArrays(BuildContext& ctx, size_t dataSize) {
         
         ctx.internalLevelCount = levelSizes.size();
         ctx.totalInternalNodes = totalInternalNodes; 
-        std::cout << "  Internal levels: " << ctx.internalLevelCount << std::endl;
+        VERBOSE_PRINT("  Internal levels: " << ctx.internalLevelCount);
         
         // Allocate internal level sizes
         ctx.internalLevelSizes = new size_t[ctx.internalLevelCount];
         
         for (size_t i = 0; i < ctx.internalLevelCount; i++) {
             ctx.internalLevelSizes[i] = levelSizes[i];
-            std::cout << "    Level " << i << ": " << levelSizes[i] << " nodes" << std::endl;
+            VERBOSE_PRINT("    Level " << i << ": " << levelSizes[i] << " nodes");
         }
         
-        std::cout << "  Tree height: " << (ctx.internalLevelCount + 1) << std::endl;
+        VERBOSE_PRINT("  Tree height: " << (ctx.internalLevelCount + 1));
 
         // Allocate and populate nodesPerLevel (reversed: root first)
         //! This stores the number of nodes at each internal level in top-down order
@@ -160,7 +161,7 @@ void BTreeSST::calculateAndAllocateArrays(BuildContext& ctx, size_t dataSize) {
  * This skips the intermediate in-memory LeafNode array completely!
  */
 int32_t* BTreeSST::buildLeafNodes(BuildContext& ctx, const std::vector<std::pair<int, int>>& sortedData) {
-    std::cout << "Writing leaf nodes directly to disk..." << std::endl;
+    VERBOSE_PRINT("Writing leaf nodes directly to disk...");
     
     // Set min and max keys from sorted data
     ctx.minKey = sortedData.front().first;
@@ -193,7 +194,7 @@ int32_t* BTreeSST::buildLeafNodes(BuildContext& ctx, const std::vector<std::pair
     pwrite(ctx.fd, interleavedData, totalElements * sizeof(int32_t), (1 + ctx.totalInternalNodes) * Page::PAGE_SIZE);
     delete[] interleavedData;
     
-    std::cout << "  All " << ctx.leafNodeCount << " leaf pages written directly to disk" << std::endl;
+    VERBOSE_PRINT("  All " << ctx.leafNodeCount << " leaf pages written directly to disk");
     return max_per_node;
 }
 
@@ -223,7 +224,7 @@ void BTreeSST::buildInternalLevels(BuildContext& ctx, const int32_t* max_per_nod
      * (12, 24, 36) ()
      * (48)
      */
-    std::cout << "Building internal levels bottom-up..." << std::endl;
+    VERBOSE_PRINT("Building internal levels bottom-up...");
 
     // Maintain a dynamic array of max-values to be processed
     std::vector<int32_t> currentLevel(max_per_node, max_per_node + ctx.leafNodeCount);
@@ -244,8 +245,8 @@ void BTreeSST::buildInternalLevels(BuildContext& ctx, const int32_t* max_per_nod
         const size_t currentLevelSize = currentLevel.size();
         size_t srcIdx = 0;
 
-        std::cout << "  Building internal level " << levelIdx
-                  << " (" << numNodesInLevel << " nodes)" << std::endl;
+        VERBOSE_PRINT("  Building internal level " << levelIdx
+                  << " (" << numNodesInLevel << " nodes)");
 
         for (size_t nodeIdx = 0; nodeIdx < numNodesInLevel && srcIdx < currentLevelSize; ++nodeIdx) {
             const size_t nodeOffset = (levelStartIndex + nodeIdx) * MAX_INTERNAL_KEYS;
@@ -295,8 +296,8 @@ void BTreeSST::buildInternalLevels(BuildContext& ctx, const int32_t* max_per_nod
         std::cerr << "Error: Failed to write internal nodes to disk (wrote " 
                   << written << " bytes, expected " << totalBytes << ")" << std::endl;
     } else {
-        std::cout << "  All " << ctx.totalInternalNodes 
-                  << " internal nodes written to disk" << std::endl;
+        VERBOSE_PRINT("  All " << ctx.totalInternalNodes 
+                  << " internal nodes written to disk");
     }
     
     delete[] allInternalNodes;
@@ -522,7 +523,7 @@ bool BTreeSST::get(int key, int& value, const std::string& fileName, bool useBTr
                 uint32_t position = bloomHash(key, i, metadata.bloom_bits);
                 if (!bloomFilterTestBit(bloomFilter, position)) {
                     // Bloom filter says key is definitely not present
-                    std::cout << "\033[31m" << "Key " << key << " is definitely not present" << "\033[0m" << std::endl;
+                    VERBOSE_PRINT("\033[31m" << "Key " << key << " is definitely not present" << "\033[0m");
                     return false;
                 }
             }
