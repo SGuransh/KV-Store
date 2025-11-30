@@ -1,4 +1,5 @@
 #include "BufferPool.hpp"
+#include "../DBConfig.hpp"
 #include <stdexcept>
 #include <iostream>
 
@@ -59,9 +60,9 @@ Page* BufferPool::getPage(const PageID& id) {
     if (page != nullptr) {
         // Page found - record access in eviction policy
         evictionPolicy->recordAccess(id);
-        std::cout << "[BufferPool] Cache HIT: " << id.toString() << std::endl;
+        VERBOSE_PRINT("[BufferPool] Cache HIT: " << id.toString());
     } else {
-        std::cout << "[BufferPool] Cache MISS: " << id.toString() << std::endl;
+        VERBOSE_PRINT("[BufferPool] Cache MISS: " << id.toString());
     }
     
     return page;

@@ -26,7 +26,8 @@
         
         // Create BufferPool with 10 pages and CLOCK eviction (small to force evictions)
         auto evictionPolicy = std::make_unique<ClockEvictionPolicy>();
-        bufferPool = std::make_unique<BufferPool>(10, std::move(evictionPolicy));
+        //bufferPool = std::make_unique<BufferPool>(10, std::move(evictionPolicy));
+        bufferPool = std::make_unique<BufferPool>(2560, std::move(evictionPolicy));
         
         isOpen = false;
         nextFileNumber = 1;
