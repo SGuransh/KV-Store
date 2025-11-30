@@ -126,7 +126,8 @@ bool LSMTree::compactLevel(int level) {
     
     // Generate output SST filename for target level (level + 1)
     int targetLevel = level + 1;
-    std::string outputFileName = "sst_" + std::to_string(nextSSTNumber) + ".txt";
+    int outputSSTNumber = nextSSTNumber;  // Save the number before incrementing
+    std::string outputFileName = "sst_" + std::to_string(outputSSTNumber) + ".txt";
     std::string outputPath = dbDirectory + "/" + outputFileName;
     
     // Perform the merge
@@ -166,8 +167,11 @@ bool LSMTree::compactLevel(int level) {
         metadata.maxKey,
         totalPairs,
         targetLevel,
-        nextSSTNumber++
+        outputSSTNumber
     );
+    
+    // Increment nextSSTNumber for the next SST
+    nextSSTNumber++;
     
     // Update levels vector: remove source SSTs from current level
     // Remove both SSTs (indices 0 and 1)
@@ -254,35 +258,67 @@ bool LSMTree::mergeTwoSSTs(const std::string& sst1, const std::string& sst2,
         return false;
     }
     
-    // Calculate starting offsets for leaf data (skip metadata page and internal nodes)
-    // Leaf pages start at page 1, so offset = 1 * PAGE_SIZE
-    size_t offset1 = Page::PAGE_SIZE;  // Start of leaf data in SST1
-    size_t offset2 = Page::PAGE_SIZE;  // Start of leaf data in SST2
+    // Calculate starting offsets for leaf data using leaf_start_page from metadata
+    // This properly skips metadata page (page 0) and all internal nodes
+    size_t offset1 = meta1.leaf_start_page * Page::PAGE_SIZE;
+    size_t offset2 = meta2.leaf_start_page * Page::PAGE_SIZE;
     
-    // Allocate merge buffers
+    // Calculate end of leaf data (exact byte offset where key-value pairs end)
+    // All full leaf pages + partial last leaf page
+    // Each pair is 2 * sizeof(int32_t) = 8 bytes
+    size_t leafDataBytes1 = meta1.total_number_of_pairs * 2 * sizeof(int32_t);
+    size_t leafDataBytes2 = meta2.total_number_of_pairs * 2 * sizeof(int32_t);
+    size_t maxOffset1 = offset1 + leafDataBytes1;
+    size_t maxOffset2 = offset2 + leafDataBytes2;
+    
+    std::cout << "SST1: leaf_start_page=" << meta1.leaf_start_page 
+              << ", leafCount=" << meta1.leafCount 
+              << ", total_pairs=" << meta1.total_number_of_pairs << std::endl;
+    std::cout << "SST2: leaf_start_page=" << meta2.leaf_start_page 
+              << ", leafCount=" << meta2.leafCount 
+              << ", total_pairs=" << meta2.total_number_of_pairs << std::endl;
+    
+    // Allocate merge buffers (2 input + 1 output)
     MergeBuffer inputBuffer1;
     MergeBuffer inputBuffer2;
     MergeBuffer outputBuffer;
     
     // Initial refill of input buffers
-    bool hasData1 = inputBuffer1.refillFromSST(fullPath1, offset1);
-    bool hasData2 = inputBuffer2.refillFromSST(fullPath2, offset2);
+    bool hasData1 = inputBuffer1.refillFromSST(fullPath1, offset1, maxOffset1);
+    bool hasData2 = inputBuffer2.refillFromSST(fullPath2, offset2, maxOffset2);
     
     if (!hasData1 && !hasData2) {
         std::cerr << "Error: Both input SSTs are empty" << std::endl;
         return false;
     }
     
-    // Create temporary file for merged output
-    std::string tempOutputPath = fullOutputPath + ".tmp";
-    int outputFd = open(tempOutputPath.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
-    if (outputFd < 0) {
-        std::cerr << "Error: Failed to create temporary output file: " << tempOutputPath << std::endl;
+    // Create temporary file for streaming merged data
+    std::string tempMergePath = fullOutputPath + ".merge.tmp";
+    int mergeFd = open(tempMergePath.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    if (mergeFd < 0) {
+        std::cerr << "Error: Failed to create temporary merge file: " << tempMergePath << std::endl;
         return false;
     }
     
-    // Vector to collect all merged pairs for building final B-Tree
-    std::vector<std::pair<int, int>> mergedData;
+    // Track total pairs merged
+    size_t totalMergedPairs = 0;
+    
+    // Helper lambda to add pair to output buffer and flush to file if full
+    auto addToOutput = [&](int32_t key, int32_t value) {
+        if (outputBuffer.isFull()) {
+            // Flush output buffer to file
+            if (!outputBuffer.flushToFile(mergeFd)) {
+                std::cerr << "Error: Failed to flush output buffer to file" << std::endl;
+                close(mergeFd);
+                FileOperations::remove_file(tempMergePath);
+                return false;
+            }
+            outputBuffer.clear();
+        }
+        outputBuffer.append(key, value);
+        totalMergedPairs++;
+        return true;
+    };
     
     // Main merge loop: process data from both buffers
     while (hasData1 && hasData2) {
@@ -292,34 +328,43 @@ bool LSMTree::mergeTwoSSTs(const std::string& sst1, const std::string& sst2,
         
         if (pair1.first < pair2.first) {
             // Key from buffer1 is smaller - take it
-            mergedData.push_back(pair1);
+            if (!addToOutput(pair1.first, pair1.second)) {
+                close(mergeFd);
+                return false;
+            }
             inputBuffer1.consumeMin();
             
             // Refill buffer1 if exhausted
             if (!inputBuffer1.hasData()) {
-                hasData1 = inputBuffer1.refillFromSST(fullPath1, offset1);
+                hasData1 = inputBuffer1.refillFromSST(fullPath1, offset1, maxOffset1);
             }
         } else if (pair1.first > pair2.first) {
             // Key from buffer2 is smaller - take it
-            mergedData.push_back(pair2);
+            if (!addToOutput(pair2.first, pair2.second)) {
+                close(mergeFd);
+                return false;
+            }
             inputBuffer2.consumeMin();
             
             // Refill buffer2 if exhausted
             if (!inputBuffer2.hasData()) {
-                hasData2 = inputBuffer2.refillFromSST(fullPath2, offset2);
+                hasData2 = inputBuffer2.refillFromSST(fullPath2, offset2, maxOffset2);
             }
         } else {
-            // Keys are equal - keep pair from lower level (sst1) and discard sst2's version
-            mergedData.push_back(pair1);
+            // Keys are equal - keep pair from sst1 (newer) and discard sst2's version
+            if (!addToOutput(pair1.first, pair1.second)) {
+                close(mergeFd);
+                return false;
+            }
             inputBuffer1.consumeMin();
             inputBuffer2.consumeMin();
             
             // Refill both buffers if exhausted
             if (!inputBuffer1.hasData()) {
-                hasData1 = inputBuffer1.refillFromSST(fullPath1, offset1);
+                hasData1 = inputBuffer1.refillFromSST(fullPath1, offset1, maxOffset1);
             }
             if (!inputBuffer2.hasData()) {
-                hasData2 = inputBuffer2.refillFromSST(fullPath2, offset2);
+                hasData2 = inputBuffer2.refillFromSST(fullPath2, offset2, maxOffset2);
             }
         }
     }
@@ -327,29 +372,82 @@ bool LSMTree::mergeTwoSSTs(const std::string& sst1, const std::string& sst2,
     // Handle remaining data from buffer1
     while (hasData1) {
         auto pair = inputBuffer1.peekMin();
-        mergedData.push_back(pair);
+        if (!addToOutput(pair.first, pair.second)) {
+            close(mergeFd);
+            return false;
+        }
         inputBuffer1.consumeMin();
         
         if (!inputBuffer1.hasData()) {
-            hasData1 = inputBuffer1.refillFromSST(fullPath1, offset1);
+            hasData1 = inputBuffer1.refillFromSST(fullPath1, offset1, maxOffset1);
         }
     }
     
     // Handle remaining data from buffer2
     while (hasData2) {
         auto pair = inputBuffer2.peekMin();
-        mergedData.push_back(pair);
+        if (!addToOutput(pair.first, pair.second)) {
+            close(mergeFd);
+            return false;
+        }
         inputBuffer2.consumeMin();
         
         if (!inputBuffer2.hasData()) {
-            hasData2 = inputBuffer2.refillFromSST(fullPath2, offset2);
+            hasData2 = inputBuffer2.refillFromSST(fullPath2, offset2, maxOffset2);
         }
     }
     
-    // Close temporary file
-    close(outputFd);
+    // Flush any remaining data in output buffer
+    if (outputBuffer.validPairs > 0) {
+        if (!outputBuffer.flushToFile(mergeFd)) {
+            std::cerr << "Error: Failed to flush final output buffer" << std::endl;
+            close(mergeFd);
+            FileOperations::remove_file(tempMergePath);
+            return false;
+        }
+    }
+    
+    // Close merge file
+    close(mergeFd);
+    
+    std::cout << "Merged " << totalMergedPairs << " pairs to temporary file" << std::endl;
+    
+    // Now read the merged data back and build B-Tree SST
+    // Read merged data from temporary file
+    std::vector<std::pair<int, int>> mergedData;
+    mergedData.reserve(totalMergedPairs);
+    
+    int readFd = open(tempMergePath.c_str(), O_RDONLY);
+    if (readFd < 0) {
+        std::cerr << "Error: Failed to open temporary merge file for reading" << std::endl;
+        FileOperations::remove_file(tempMergePath);
+        return false;
+    }
+    
+    // Read all merged data
+    size_t bytesToRead = totalMergedPairs * 2 * sizeof(int32_t);
+    int32_t* readBuffer = new int32_t[totalMergedPairs * 2];
+    ssize_t bytesRead = read(readFd, readBuffer, bytesToRead);
+    close(readFd);
+    
+    if (bytesRead != static_cast<ssize_t>(bytesToRead)) {
+        std::cerr << "Error: Failed to read merged data from temporary file" << std::endl;
+        delete[] readBuffer;
+        FileOperations::remove_file(tempMergePath);
+        return false;
+    }
+    
+    // Convert to vector of pairs
+    for (size_t i = 0; i < totalMergedPairs; i++) {
+        mergedData.emplace_back(readBuffer[i * 2], readBuffer[i * 2 + 1]);
+    }
+    delete[] readBuffer;
+    
+    // Delete temporary merge file
+    FileOperations::remove_file(tempMergePath);
     
     // Build final B-Tree SST from merged data
+    std::string tempOutputPath = fullOutputPath + ".tmp";
     if (!sstBuilder.buildBTree(mergedData, tempOutputPath)) {
         std::cerr << "Error: Failed to build B-Tree from merged data" << std::endl;
         FileOperations::remove_file(tempOutputPath);
@@ -363,7 +461,7 @@ bool LSMTree::mergeTwoSSTs(const std::string& sst1, const std::string& sst2,
         return false;
     }
     
-    std::cout << "Successfully merged " << mergedData.size() << " pairs into " << outputSST << std::endl;
+    std::cout << "Successfully merged " << totalMergedPairs << " pairs into " << outputSST << std::endl;
     return true;
 }
 

@@ -51,7 +51,7 @@ struct BuildContext {
     BuildContext(const std::string& fname) 
         : fileName(fname), fd(-1), leafNodeCount(0), internalLevelSizes(nullptr), internalLevelCount(0), totalInternalNodes(0),
           lastLeafPairs(0), nodesPerLevel(nullptr), lastNodeKeys(nullptr),
-          bloomBits(0), bloomBytes(0), bloomHashCount(0) {}
+          bloomBits(0), bloomBytes(0), bloomHashCount(0), leaf_start_page(0), total_number_of_pairs(0) {}
 
     ~BuildContext() {
         cleanup();
