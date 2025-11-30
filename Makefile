@@ -38,7 +38,9 @@ HEADERS = Memtable_ds.hpp FileOperations.hpp Database.hpp AVL.hpp \
 	    BufferPool/BufferPool.hpp BufferPool/ClockEvictionPolicy.hpp BufferPool/EvictionPolicy.hpp
 
 # B-Tree source files
-BTREE_SOURCES = BTree/BTreeSST.cpp BufferPool/Page.cpp
+BTREE_SOURCES = BTree/BTreeSST.cpp BufferPool/Page.cpp BufferPool/PageID.cpp \
+	BufferPool/MurmurHash.cpp BufferPool/BucketNode.cpp BufferPool/Bucket.cpp \
+	BufferPool/HashTable.cpp BufferPool/BufferPool.cpp BufferPool/ClockEvictionPolicy.cpp
 
 # LSM source files (includes BTree dependencies)
 LSM_SOURCES = LSM/LSMTree.cpp LSM/MergeBuffer.cpp BTree/BTreeSST.cpp BufferPool/Page.cpp FileOperations.cpp
@@ -116,6 +118,9 @@ test_btree_scan: tests/test_btree_scan.cpp $(BTREE_SOURCES)
 test_bloom_filter: tests/test_bloom_filter.cpp $(BTREE_SOURCES)
 	$(CXX) $(CXXFLAGS) -I. $^ -o $@
 
+test_btree_bufferpool: tests/test_btree_bufferpool.cpp $(BTREE_SOURCES)
+	$(CXX) $(CXXFLAGS) -I. $^ -o $@
+
 # FileOperations test target
 test_file_operations: tests/test_file_operations.cpp FileOperations.cpp $(BTREE_SOURCES)
 	$(CXX) $(CXXFLAGS) -I. $^ -o $@
@@ -130,11 +135,8 @@ test_mergebuffer: tests/test_mergebuffer.cpp $(LSM_SOURCES)
 test_compaction: tests/test_compaction.cpp $(LSM_SOURCES)
 	$(CXX) $(CXXFLAGS) -I. $^ -o $@
 
-test_sstmetadata: tests/test_sstmetadata.cpp $(LSM_SOURCES)
-	$(CXX) $(CXXFLAGS) -I. $^ -o $@
-
 # Run B-Tree tests
-test-btree: test_btree_get test_btree_internal_levels test_btree_scan test_bloom_filter
+test-btree: test_btree_get test_btree_internal_levels test_btree_scan test_bloom_filter test_btree_bufferpool
 	@echo "========================================="
 	@echo "       Running B-Tree Tests"
 	@echo "========================================="
@@ -149,6 +151,12 @@ test-btree: test_btree_get test_btree_internal_levels test_btree_scan test_bloom
 	@echo ""
 	@echo "Running Bloom Filter Tests..."
 	@./test_bloom_filter
+	@echo ""
+	@echo "Running BufferPool Integration Tests..."
+	@./test_btree_bufferpool
+	@echo "========================================="
+	@echo "       B-Tree Tests Completed"
+	@echo "========================================="
 	@echo "========================================="
 	@echo "       B-Tree Tests Completed"
 	@echo "========================================="
@@ -193,7 +201,7 @@ test-lsm: test_merge_algorithm test_mergebuffer test_compaction test_sstmetadata
 clean:
 	rm -rf $(OUT_DIR) test main
 	rm -rf test_db_* test_memtable_dir
-	rm -rf $(C_DIR)
+	rm -rf test_btree_get test_btree_internal_levels test_btree_scan test_bloom_filter test_btree_bufferpool test_file_operations
 	rm -rf test.exe
 	rm -rf *.o
 	rm -rf test_btree_get test_btree_internal_levels test_btree_scan test_bloom_filter test_file_operations
