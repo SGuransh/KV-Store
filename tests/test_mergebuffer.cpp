@@ -78,11 +78,6 @@ void test_input_buffer_operations() {
     
     assert(builder.buildBTree(data, "test_merge_input.txt") == true);
     
-    // Get file size to calculate leaf data offset
-    struct stat st;
-    stat("test_merge_input.txt", &st);
-    size_t fileSize = st.st_size;
-    
     // For a BTree SST, we need to skip the metadata page and internal nodes
     // The leaf data starts after the metadata page (4096 bytes)
     // For simplicity, we'll read from the beginning of leaf pages
@@ -150,7 +145,7 @@ void test_buffer_refill() {
     assert(!buffer.hasData());
     
     // Refill again - should get more data
-    bool hasMore = buffer.refillFromSST("test_merge_input.txt", fileOffset, maxOffset);
+    buffer.refillFromSST("test_merge_input.txt", fileOffset, maxOffset);
     // May or may not have more data depending on file structure
     
     cleanup_test_files();
