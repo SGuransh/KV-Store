@@ -265,7 +265,6 @@ int main() {
                     std::cout << "Error: No database is open. Use 'open <db_name>' first" << std::endl;
                     continue;
                 }
-                db.print_lsm_structure();
             }
             else if (command == "compact") {
                 if (!db.is_open()) {
