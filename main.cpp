@@ -18,6 +18,7 @@ void printHelp() {
     std::cout << "  status                    - Show database status" << std::endl;
     std::cout << "  lsm                       - Show LSM tree structure" << std::endl;
     std::cout << "  compact <level>           - Manually compact a level" << std::endl;
+    std::cout << "  searchmode <btree|binary> - Set search mode (btree or binary)" << std::endl;
     std::cout << "  help                      - Show this help message" << std::endl;
     std::cout << "  clear                     - Clear the console screen" << std::endl;
     std::cout << "  exit                      - Exit the program" << std::endl;
@@ -35,6 +36,7 @@ void printStatus(const Database& db) {
             : 0.0;
         std::cout << "  Fill level: " << std::fixed << std::setprecision(1) << fill_percent << "%" << std::endl;
     }
+    std::cout << "  Search mode: " << (db.getUseBTreeSearch() ? "B-Tree" : "Binary") << std::endl;
     std::cout << "----------------------" << std::endl;
 }
 
@@ -275,6 +277,26 @@ int main() {
                     std::cout << "✓ Level " << level << " compacted successfully" << std::endl;
                 } else {
                     std::cout << "✗ Failed to compact level " << level << std::endl;
+                }
+            }
+            else if (command == "searchmode") {
+                std::string mode;
+                if (!(iss >> mode)) {
+                    std::cout << "Error: Please specify search mode (btree or binary)" << std::endl;
+                    std::cout << "Usage: searchmode <btree|binary>" << std::endl;
+                    std::cout << "Current mode: " << (db.getUseBTreeSearch() ? "btree" : "binary") << std::endl;
+                    continue;
+                }
+
+                if (mode == "btree") {
+                    db.setUseBTreeSearch(true);
+                    std::cout << "✓ Search mode set to B-Tree" << std::endl;
+                } else if (mode == "binary") {
+                    db.setUseBTreeSearch(false);
+                    std::cout << "✓ Search mode set to Binary Search" << std::endl;
+                } else {
+                    std::cout << "Error: Invalid search mode '" << mode << "'" << std::endl;
+                    std::cout << "Valid modes: btree, binary" << std::endl;
                 }
             }
             else if (command == "clear") {

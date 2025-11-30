@@ -23,6 +23,9 @@ private:
     // Bloom filter configuration
     uint32_t bloomBitsPerEntry;   // Default: 10 bits per entry
     uint32_t bloomHashCount;       // Default: 3 hash functions
+    
+    // Search mode configuration
+    bool useBTreeSearch;           // Default: true (use B-Tree search), false (use binary search)
 
     bool load_incomplete_file();
 
@@ -44,6 +47,10 @@ public:
     // Bloom filter getters
     uint32_t getBloomBitsPerEntry() const { return bloomBitsPerEntry; }
     uint32_t getBloomHashCount() const { return bloomHashCount; }
+    
+    // Search mode configuration
+    void setUseBTreeSearch(bool useBTree) { useBTreeSearch = useBTree; }
+    bool getUseBTreeSearch() const { return useBTreeSearch; }
 
     // Getters
     int get_size() const;
