@@ -5,6 +5,7 @@
 #include <string>
 #include <limits>
 #include <iomanip>
+#include <chrono>
 
 void printHelp() {
     std::cout << "\n=== KV-Store Database Commands ===" << std::endl;
@@ -24,6 +25,7 @@ void printHelp() {
     std::cout << "  help                      - Show this help message" << std::endl;
     std::cout << "  clear                     - Clear the console screen" << std::endl;
     std::cout << "  exit                      - Exit the program" << std::endl;
+    std::cout << "  test <num_entries>        - Test insertion performance" << std::endl; 
     std::cout << "===================================" << std::endl;
 }
 
@@ -52,7 +54,7 @@ int main() {
     // - Memtable capacity: 10 key-value pairs
     // - Bloom filter: 10 bits per entry
     // - Bloom filter: 3 hash functions
-    Database db(10, 10, 3);
+    Database db(2560, 10, 3);  // 4 mb
     std::string line, command;
     
     std::cout << "\n╔═══════════════╗" << std::endl;
@@ -88,20 +90,20 @@ int main() {
             else if (command == "open") {
                 std::string dbName;
                 if (!(iss >> dbName)) {
-                    std::cout << "Error: Please provide a database name" << std::endl;
-                    std::cout << "Usage: open <db_name>" << std::endl;
+                    // std::cout << "Error: Please provide a database name" << std::endl;
+                    // std::cout << "Usage: open <db_name>" << std::endl;
                     continue;
                 }
 
                 if (db.is_open()) {
-                    std::cout << "Closing current database first..." << std::endl;
+                    // std::cout << "Closing current database first..." << std::endl;
                     db.close_database();
                 }
 
                 if (db.open_database(dbName)) {
-                    std::cout << "✓ Database '" << dbName << "' opened successfully" << std::endl;
+                    // std::cout << "✓ Database '" << dbName << "' opened successfully" << std::endl;
                 } else {
-                    std::cout << "✗ Failed to open database '" << dbName << "'" << std::endl;
+                    // std::cout << "✗ Failed to open database '" << dbName << "'" << std::endl;
                 }
             }
             else if (command == "close") {
@@ -118,51 +120,51 @@ int main() {
             }
             else if (command == "insert" || command == "i") {
                 if (!db.is_open()) {
-                    std::cout << "Error: No database is open. Use 'open <db_name>' first" << std::endl;
+                    // std::cout << "Error: No database is open. Use 'open <db_name>' first" << std::endl;
                     continue;
                 }
 
                 int key, value;
                 if (!(iss >> key >> value)) {
-                    std::cout << "Error: Please provide both key and value" << std::endl;
-                    std::cout << "Usage: insert <key> <value>" << std::endl;
+                    // std::cout << "Error: Please provide both key and value" << std::endl;
+                    // std::cout << "Usage: insert <key> <value>" << std::endl;
                     continue;
                 }
 
                 if (db.insert(key, value)) {
-                    std::cout << "✓ Inserted: " << key << " -> " << value << std::endl;
+                    // std::cout << "✓ Inserted: " << key << " -> " << value << std::endl;
                 } else {
-                    std::cout << "✗ Failed to insert key " << key << std::endl;
+                    // std::cout << "✗ Failed to insert key " << key << std::endl;
                 }
             }
             else if (command == "seq") {
                 if (!db.is_open()) {
-                    std::cout << "Error: No database is open. Use 'open <db_name>' first" << std::endl;
+                    // std::cout << "Error: No database is open. Use 'open <db_name>' first" << std::endl;
                     continue;
                 }
 
                 int start, end, step = 1;
                 if (!(iss >> start >> end >> step)) {
-                    std::cout << "Error: Please provide both start and end values" << std::endl;
-                    std::cout << "Usage: seq <start> <end> <step>" << std::endl;
+                    // std::cout << "Error: Please provide both start and end values" << std::endl;
+                    // std::cout << "Usage: seq <start> <end> <step>" << std::endl;
                     continue;
                 }
 
                 if (start > end) {
-                    std::cout << "Error: Start value must be less than or equal to end value" << std::endl;
+                    // std::cout << "Error: Start value must be less than or equal to end value" << std::endl;
                     continue;
                 }
 
                 bool allInserted = true;
                 for (int k = start; k <= end; k += step) {
                     if (!db.insert(k, k)) {
-                        std::cout << "✗ Failed to insert key " << k << std::endl;
+                        // std::cout << "✗ Failed to insert key " << k << std::endl;
                         allInserted = false;
                     }
                 }
 
                 if (allInserted) {
-                    std::cout << "✓ Inserted sequential keys from " << start << " to " << end << std::endl;
+                    // std::cout << "✓ Inserted sequential keys from " << start << " to " << end << std::endl;
                 }
             }
             else if (command == "search" || command == "s") {
@@ -304,6 +306,55 @@ int main() {
                     std::cout << "Error: Invalid search mode '" << mode << "'" << std::endl;
                     std::cout << "Valid modes: btree, binary" << std::endl;
                 }
+            }
+            else if (command == "test") {
+                int num_entries;
+                if (!(iss >> num_entries)) {
+                    std::cout << "Error: Please provide number of entries" << std::endl;
+                    std::cout << "Usage: test <num_entries>" << std::endl;
+                    continue;
+                }
+
+                if (num_entries <= 0) {
+                    std::cout << "Error: Number of entries must be positive" << std::endl;
+                    continue;
+                }
+
+                // Open "ron" database
+                if (!db.open_database("ron")) {
+                    continue;
+                }
+
+                // Insert sequential keys
+                int start_key = 1;
+                int end_key = num_entries;
+                int step = 1;
+                bool allInserted = true;
+
+                // Start timer
+                auto start = std::chrono::high_resolution_clock::now();
+                for (int k = start_key; k <= end_key; k += step) {
+                    if (!db.insert(k, k)) {
+                        allInserted = false;
+                        break;
+                    }
+                }
+
+                // End timer
+                auto end = std::chrono::high_resolution_clock::now();
+                auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+
+                if (allInserted) {
+                    std::cout << "✓ Inserted sequential keys from " << start_key << " to " << end_key << std::endl;
+                }
+                std::cout << "Time taken: " << duration.count() << " ms (" 
+                          << std::fixed << std::setprecision(2) << (duration.count() / 1000.0) << " seconds)" << std::endl;
+
+                // Close database and remove directory
+                db.close_database();
+                std::cout << "Cleaning up test database..." << std::endl;
+                system("rm -rf ron");
+                std::cout << "✓ Test database removed" << std::endl;
             }
             else if (command == "workmode") {
                 std::cout << "\n--- Verbose Mode Status ---" << std::endl;
