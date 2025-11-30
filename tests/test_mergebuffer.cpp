@@ -78,11 +78,6 @@ void test_input_buffer_operations() {
     
     assert(builder.buildBTree(data, "test_merge_input.txt") == true);
     
-    // Get file size to calculate leaf data offset
-    struct stat st;
-    stat("test_merge_input.txt", &st);
-    size_t fileSize = st.st_size;
-    
     // For a BTree SST, we need to skip the metadata page and internal nodes
     // The leaf data starts after the metadata page (4096 bytes)
     // For simplicity, we'll read from the beginning of leaf pages
@@ -91,7 +86,9 @@ void test_input_buffer_operations() {
     MergeBuffer buffer(20);  // Buffer can hold 20 pairs
     
     // Test refill from SST
-    bool success = buffer.refillFromSST("test_merge_input.txt", fileOffset);
+    // Calculate maxOffset: assume we have metadata at the test file
+    size_t maxOffset = 1000000;  // Large enough for test
+    bool success = buffer.refillFromSST("test_merge_input.txt", fileOffset, maxOffset);
     assert(success == true);
     assert(buffer.hasData() == true);
     
@@ -131,8 +128,11 @@ void test_buffer_refill() {
     size_t fileOffset = 4096;  // Skip metadata page
     MergeBuffer buffer(30);  // Buffer smaller than total data
     
+    // Calculate maxOffset: 100 pairs * 8 bytes per pair + offset
+    size_t maxOffset = fileOffset + (100 * 2 * sizeof(int32_t));
+    
     // First refill
-    assert(buffer.refillFromSST("test_merge_input.txt", fileOffset) == true);
+    assert(buffer.refillFromSST("test_merge_input.txt", fileOffset, maxOffset) == true);
     assert(buffer.hasData() == true);
     
     // Consume all data in buffer
@@ -145,7 +145,7 @@ void test_buffer_refill() {
     assert(!buffer.hasData());
     
     // Refill again - should get more data
-    bool hasMore = buffer.refillFromSST("test_merge_input.txt", fileOffset);
+    buffer.refillFromSST("test_merge_input.txt", fileOffset, maxOffset);
     // May or may not have more data depending on file structure
     
     cleanup_test_files();

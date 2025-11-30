@@ -1,4 +1,7 @@
 #include "BTreeSST.hpp"
+#include "../DBConfig.hpp"
+#include "../BufferPool/BufferPool.hpp"
+#include "../BufferPool/PageID.hpp"
 #include <fcntl.h>
 #include <unistd.h>
 #include <iostream>
@@ -18,7 +21,7 @@ bool BTreeSST::buildBTree(const std::vector<std::pair<int, int>>& sortedData,
         return false;
     }
     
-    std::cout << "Building B-Tree SST with " << sortedData.size() << " key-value pairs..." << std::endl;
+    VERBOSE_PRINT("Building B-Tree SST with " << sortedData.size() << " key-value pairs...");
     
     // Create build context
     BuildContext ctx(fileName);
@@ -49,14 +52,14 @@ bool BTreeSST::buildBTree(const std::vector<std::pair<int, int>>& sortedData,
     }
 
     // Phase 4: Build and write bloom filter at end of file
-    std::cout << "Building bloom filter (" << bitsPerEntry << " bits/entry, " 
-              << hashCount << " hash functions)..." << std::endl;
+    VERBOSE_PRINT("Building bloom filter (" << bitsPerEntry << " bits/entry, " 
+              << hashCount << " hash functions)...");
     std::vector<uint8_t> bloomFilter = buildBloomFilter(sortedData, bitsPerEntry, hashCount);
     if (!writeBloomFilter(ctx.fd, bloomFilter)) {
         std::cerr << "Error: Failed to write bloom filter" << std::endl;
         return false;
     }
-    std::cout << "  Bloom filter: " << bloomFilter.size() << " bytes" << std::endl;
+    VERBOSE_PRINT("  Bloom filter: " << bloomFilter.size() << " bytes");
 
     // Store bloom filter metadata in context
     ctx.bloomBits = sortedData.size() * bitsPerEntry;
@@ -78,7 +81,7 @@ bool BTreeSST::buildBTree(const std::vector<std::pair<int, int>>& sortedData,
 void BTreeSST::calculateAndAllocateArrays(BuildContext& ctx, size_t dataSize) {
     // Calculate number of leaf nodes needed
     ctx.leafNodeCount = (dataSize + MAX_LEAF_PAIRS - 1) / MAX_LEAF_PAIRS;
-    std::cout << "  Leaf nodes: " << ctx.leafNodeCount << " (capacity: " << MAX_LEAF_PAIRS << " pairs each)" << std::endl;
+    VERBOSE_PRINT("  Leaf nodes: " << ctx.leafNodeCount << " (capacity: " << MAX_LEAF_PAIRS << " pairs each)");
     
     // Open file for writing (will write leaves directly)
     ctx.fd = open(ctx.fileName.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
@@ -96,7 +99,7 @@ void BTreeSST::calculateAndAllocateArrays(BuildContext& ctx, size_t dataSize) {
         // Tree height of 1 means: 0 internal levels + 1 leaf level = single root leaf
         // This ensures metadata is complete even for single-leaf trees
         ctx.treeHeight = 1;
-        std::cout << "  Tree height: 1 (single leaf root)" << std::endl;
+        VERBOSE_PRINT("  Tree height: 1 (single leaf root)");
         return;
     }
     else{
@@ -123,17 +126,17 @@ void BTreeSST::calculateAndAllocateArrays(BuildContext& ctx, size_t dataSize) {
         
         ctx.internalLevelCount = levelSizes.size();
         ctx.totalInternalNodes = totalInternalNodes; 
-        std::cout << "  Internal levels: " << ctx.internalLevelCount << std::endl;
+        VERBOSE_PRINT("  Internal levels: " << ctx.internalLevelCount);
         
         // Allocate internal level sizes
         ctx.internalLevelSizes = new size_t[ctx.internalLevelCount];
         
         for (size_t i = 0; i < ctx.internalLevelCount; i++) {
             ctx.internalLevelSizes[i] = levelSizes[i];
-            std::cout << "    Level " << i << ": " << levelSizes[i] << " nodes" << std::endl;
+            VERBOSE_PRINT("    Level " << i << ": " << levelSizes[i] << " nodes");
         }
         
-        std::cout << "  Tree height: " << (ctx.internalLevelCount + 1) << std::endl;
+        VERBOSE_PRINT("  Tree height: " << (ctx.internalLevelCount + 1));
 
         // Allocate and populate nodesPerLevel (reversed: root first)
         //! This stores the number of nodes at each internal level in top-down order
@@ -158,7 +161,7 @@ void BTreeSST::calculateAndAllocateArrays(BuildContext& ctx, size_t dataSize) {
  * This skips the intermediate in-memory LeafNode array completely!
  */
 int32_t* BTreeSST::buildLeafNodes(BuildContext& ctx, const std::vector<std::pair<int, int>>& sortedData) {
-    std::cout << "Writing leaf nodes directly to disk..." << std::endl;
+    VERBOSE_PRINT("Writing leaf nodes directly to disk...");
     
     // Set min and max keys from sorted data
     ctx.minKey = sortedData.front().first;
@@ -191,7 +194,7 @@ int32_t* BTreeSST::buildLeafNodes(BuildContext& ctx, const std::vector<std::pair
     pwrite(ctx.fd, interleavedData, totalElements * sizeof(int32_t), (1 + ctx.totalInternalNodes) * Page::PAGE_SIZE);
     delete[] interleavedData;
     
-    std::cout << "  All " << ctx.leafNodeCount << " leaf pages written directly to disk" << std::endl;
+    VERBOSE_PRINT("  All " << ctx.leafNodeCount << " leaf pages written directly to disk");
     return max_per_node;
 }
 
@@ -221,7 +224,7 @@ void BTreeSST::buildInternalLevels(BuildContext& ctx, const int32_t* max_per_nod
      * (12, 24, 36) ()
      * (48)
      */
-    std::cout << "Building internal levels bottom-up..." << std::endl;
+    VERBOSE_PRINT("Building internal levels bottom-up...");
 
     // Maintain a dynamic array of max-values to be processed
     std::vector<int32_t> currentLevel(max_per_node, max_per_node + ctx.leafNodeCount);
@@ -242,8 +245,8 @@ void BTreeSST::buildInternalLevels(BuildContext& ctx, const int32_t* max_per_nod
         const size_t currentLevelSize = currentLevel.size();
         size_t srcIdx = 0;
 
-        std::cout << "  Building internal level " << levelIdx
-                  << " (" << numNodesInLevel << " nodes)" << std::endl;
+        VERBOSE_PRINT("  Building internal level " << levelIdx
+                  << " (" << numNodesInLevel << " nodes)");
 
         for (size_t nodeIdx = 0; nodeIdx < numNodesInLevel && srcIdx < currentLevelSize; ++nodeIdx) {
             const size_t nodeOffset = (levelStartIndex + nodeIdx) * MAX_INTERNAL_KEYS;
@@ -293,8 +296,8 @@ void BTreeSST::buildInternalLevels(BuildContext& ctx, const int32_t* max_per_nod
         std::cerr << "Error: Failed to write internal nodes to disk (wrote " 
                   << written << " bytes, expected " << totalBytes << ")" << std::endl;
     } else {
-        std::cout << "  All " << ctx.totalInternalNodes 
-                  << " internal nodes written to disk" << std::endl;
+        VERBOSE_PRINT("  All " << ctx.totalInternalNodes 
+                  << " internal nodes written to disk");
     }
     
     delete[] allInternalNodes;
@@ -382,6 +385,45 @@ bool BTreeSST::readMetadata(const std::string& fileName, MetadataPage& metadata)
  * Read a page from disk
  */
 bool BTreeSST::readPage(const std::string& fileName, uint32_t pageId, Page& page) const {
+    // If buffer pool is available, try to use it
+    if (bufferPool != nullptr) {
+        off_t offset = static_cast<off_t>(pageId) * Page::PAGE_SIZE;
+        PageID pid(fileName, offset);
+        
+        // Try to get from buffer pool
+        Page* cachedPage = bufferPool->getPage(pid);
+        if (cachedPage != nullptr) {
+            // Page found in buffer pool
+            page = *cachedPage;
+            return true;
+        }
+        
+        // Page not in buffer pool - read from disk and cache it
+        int fd = open(fileName.c_str(), O_RDONLY);
+        if (fd < 0) {
+            std::cerr << "Error: Cannot open file for reading: " << fileName << std::endl;
+            return false;
+        }
+        
+        ssize_t bytesRead = pread(fd, page.getData(), Page::PAGE_SIZE, offset);
+        close(fd);
+        
+        if (bytesRead < 0) {
+            std::cerr << "Error: Failed to read page " << pageId << std::endl;
+            return false;
+        }
+        
+        // If we read less than a full page, zero out the rest
+        if (bytesRead < Page::PAGE_SIZE) {
+            std::memset(page.getData() + bytesRead, 0, Page::PAGE_SIZE - bytesRead);
+        }
+        
+        // Add to buffer pool for future access
+        bufferPool->putPage(pid, page);
+        return true;
+    }
+    
+    // Fall back to direct I/O if no buffer pool
     int fd = open(fileName.c_str(), O_RDONLY);
     if (fd < 0) {
         std::cerr << "Error: Cannot open file for reading: " << fileName << std::endl;
@@ -392,12 +434,68 @@ bool BTreeSST::readPage(const std::string& fileName, uint32_t pageId, Page& page
     ssize_t bytesRead = pread(fd, page.getData(), Page::PAGE_SIZE, offset);
     close(fd);
     
-    if (bytesRead != Page::PAGE_SIZE) {
-        std::cerr << "Error: Failed to read page " << pageId << " (read " << bytesRead << " bytes)" << std::endl;
+    if (bytesRead < 0) {
+        std::cerr << "Error: Failed to read page " << pageId << std::endl;
         return false;
     }
     
+    // If we read less than a full page (can happen at end of file), zero out the rest
+    if (bytesRead < Page::PAGE_SIZE) {
+        std::memset(page.getData() + bytesRead, 0, Page::PAGE_SIZE - bytesRead);
+    }
+    
     return true;
+}
+
+/**
+ * Read multiple consecutive pages efficiently using BufferPool
+ */
+bool BTreeSST::readPages(const std::string& fileName, uint32_t startPageId, uint32_t numPages, std::vector<Page>& pages) const {
+    pages.resize(numPages);
+    
+    for (uint32_t i = 0; i < numPages; i++) {
+        if (!readPage(fileName, startPageId + i, pages[i])) {
+            return false;
+        }
+    }
+    
+    return true;
+}
+
+/**
+ * Read raw bytes from file using BufferPool for page-aligned reads
+ * This is useful when reading large amounts of data that spans multiple pages
+ */
+ssize_t BTreeSST::readBytesBuffered(const std::string& fileName, off_t offset, void* buffer, size_t size) const {
+    if (size == 0) return 0;
+    
+    // Calculate which pages we need to read
+    uint32_t startPage = offset / Page::PAGE_SIZE;
+    uint32_t endPage = (offset + size - 1) / Page::PAGE_SIZE;
+    uint32_t numPages = endPage - startPage + 1;
+    
+    // Read all required pages
+    std::vector<Page> pages;
+    if (!readPages(fileName, startPage, numPages, pages)) {
+        return -1;
+    }
+    
+    // Extract the requested bytes from the pages
+    size_t offsetInFirstPage = offset % Page::PAGE_SIZE;
+    char* dest = static_cast<char*>(buffer);
+    size_t bytesRemaining = size;
+    size_t bytesRead = 0;
+    
+    for (size_t i = 0; i < pages.size() && bytesRemaining > 0; i++) {
+        size_t startOffset = (i == 0) ? offsetInFirstPage : 0;
+        size_t bytesInThisPage = std::min(bytesRemaining, Page::PAGE_SIZE - startOffset);
+        
+        std::memcpy(dest + bytesRead, pages[i].getData() + startOffset, bytesInThisPage);
+        bytesRead += bytesInThisPage;
+        bytesRemaining -= bytesInThisPage;
+    }
+    
+    return bytesRead;
 }
 
 /**
@@ -425,6 +523,7 @@ bool BTreeSST::get(int key, int& value, const std::string& fileName, bool useBTr
                 uint32_t position = bloomHash(key, i, metadata.bloom_bits);
                 if (!bloomFilterTestBit(bloomFilter, position)) {
                     // Bloom filter says key is definitely not present
+                    VERBOSE_PRINT("\033[31m" << "Key " << key << " is definitely not present" << "\033[0m");
                     return false;
                 }
             }
@@ -462,11 +561,6 @@ bool BTreeSST::getBTreeSearch(int key, int& value, const std::string& fileName, 
         }
         
         // Read the raw leaf data
-        int fd = open(fileName.c_str(), O_RDONLY);
-        if (fd < 0) {
-            return false;
-        }
-        
         off_t leafOffset = (1 + totalInternalNodes) * Page::PAGE_SIZE;
         
         // Calculate how many pairs should be in the file
@@ -476,10 +570,9 @@ bool BTreeSST::getBTreeSearch(int key, int& value, const std::string& fileName, 
             numPairs = MAX_LEAF_PAIRS;
         }
         
-        // Read interleaved key-value data
+        // Read interleaved key-value data using buffer pool
         std::vector<int32_t> leafData(numPairs * 2);
-        ssize_t bytesRead = pread(fd, leafData.data(), leafData.size() * sizeof(int32_t), leafOffset);
-        close(fd);
+        ssize_t bytesRead = readBytesBuffered(fileName, leafOffset, leafData.data(), leafData.size() * sizeof(int32_t));
         
         if (bytesRead <= 0) {
             return false;
@@ -513,17 +606,11 @@ bool BTreeSST::getBTreeSearch(int key, int& value, const std::string& fileName, 
         }
     }
     
-    // Open file and read all leaf data as continuous stream
-    int fd = open(fileName.c_str(), O_RDONLY);
-    if (fd < 0) {
-        return false;
-    }
-    
+    // Read all leaf data as continuous stream using buffer pool
     off_t leafDataStart = (1 + totalInternalNodes) * Page::PAGE_SIZE;
     uint32_t totalPairs = (metadata.leafCount - 1) * MAX_LEAF_PAIRS + metadata.lastLeafPairs;
     std::vector<int32_t> allLeafData(totalPairs * 2);
-    ssize_t bytesRead = pread(fd, allLeafData.data(), totalPairs * 2 * sizeof(int32_t), leafDataStart);
-    close(fd);
+    ssize_t bytesRead = readBytesBuffered(fileName, leafDataStart, allLeafData.data(), totalPairs * 2 * sizeof(int32_t));
     
     if (bytesRead <= 0) {
         return false;
@@ -556,33 +643,21 @@ bool BTreeSST::getBTreeSearch(int key, int& value, const std::string& fileName, 
  * Binary search: search directly on leaf pages (for comparison)
  */
 bool BTreeSST::getBinarySearch(int key, int& value, const std::string& fileName, const MetadataPage& metadata) {
-    // Simple linear scan through leaf pages for testing
+    // Binary search through all leaf data
     int fd = open(fileName.c_str(), O_RDONLY);
     if (fd < 0) {
         return false;
     }
     
-    // Calculate total pairs
-    uint32_t totalPairs = 0;
-    if (metadata.leafCount > 0) {
-        totalPairs = (metadata.leafCount - 1) * MAX_LEAF_PAIRS + metadata.lastLeafPairs;
-    }
+    // Use total_number_of_pairs from metadata (more reliable)
+    uint32_t totalPairs = metadata.total_number_of_pairs;
     
-    // Calculate total internal nodes (if tree height > 1)
-    uint32_t totalInternalNodes = 0;
-    if (metadata.treeHeight > 1) {
-        for (uint32_t i = 1; i < metadata.treeHeight; i++) {
-            totalInternalNodes += metadata.nodesPerLevel[i];
-        }
-    }
-    
-    // Read all leaf data
-    // Leaf pages start after metadata page (page 0) and internal nodes
+    // Use leaf_start_page from metadata (already calculated during build)
     size_t leafDataSize = totalPairs * 2 * sizeof(int32_t);
     int32_t* leafData = new int32_t[totalPairs * 2];
     
-    // Offset = metadata page + internal node pages
-    size_t leafOffset = (1 + totalInternalNodes) * Page::PAGE_SIZE;
+    // Offset = leaf_start_page * PAGE_SIZE
+    size_t leafOffset = static_cast<size_t>(metadata.leaf_start_page) * Page::PAGE_SIZE;
     ssize_t bytesRead = pread(fd, leafData, leafDataSize, leafOffset);
     close(fd);
     
@@ -591,13 +666,22 @@ bool BTreeSST::getBinarySearch(int key, int& value, const std::string& fileName,
         return false;
     }
     
-    // Linear search through interleaved key-value pairs
-    for (uint32_t i = 0; i < totalPairs; i++) {
-        int32_t currentKey = leafData[i * 2];
-        if (currentKey == key) {
-            value = leafData[i * 2 + 1];
+    // Binary search through interleaved key-value pairs
+    int left = 0;
+    int right = totalPairs - 1;
+    
+    while (left <= right) {
+        int mid = left + (right - left) / 2;
+        int32_t midKey = leafData[mid * 2];
+        
+        if (midKey == key) {
+            value = leafData[mid * 2 + 1];
             delete[] leafData;
             return true;
+        } else if (midKey < key) {
+            left = mid + 1;
+        } else {
+            right = mid - 1;
         }
     }
     
@@ -640,12 +724,7 @@ std::vector<std::pair<int, int>> BTreeSST::scan(int key1, int key2, const std::s
         // For single leaf case, read the leaf data directly
         uint32_t totalInternalNodes = 0;
         
-        // Read the raw leaf data
-        int fd = open(fileName.c_str(), O_RDONLY);
-        if (fd < 0) {
-            return result;
-        }
-        
+        // Read the raw leaf data using buffer pool
         off_t leafOffset = (1 + totalInternalNodes) * Page::PAGE_SIZE;
         
         // Calculate how many pairs should be in the file
@@ -657,8 +736,7 @@ std::vector<std::pair<int, int>> BTreeSST::scan(int key1, int key2, const std::s
         
         // Read interleaved key-value data
         std::vector<int32_t> leafData(numPairs * 2);
-        ssize_t bytesRead = pread(fd, leafData.data(), leafData.size() * sizeof(int32_t), leafOffset);
-        close(fd);
+        ssize_t bytesRead = readBytesBuffered(fileName, leafOffset, leafData.data(), leafData.size() * sizeof(int32_t));
         
         if (bytesRead <= 0) {
             return result;
@@ -693,20 +771,13 @@ std::vector<std::pair<int, int>> BTreeSST::scan(int key1, int key2, const std::s
         }
     }
     
-    // Open file for reading
-    int fd = open(fileName.c_str(), O_RDONLY);
-    if (fd < 0) {
-        return result;
-    }
-    
     // Calculate offset where leaf data starts (after metadata and internal nodes)
     off_t leafDataStart = (1 + totalInternalNodes) * Page::PAGE_SIZE;
     
-    // Read all leaf data as one continuous stream
+    // Read all leaf data as one continuous stream using buffer pool
     uint32_t totalPairs = (metadata.leafCount - 1) * MAX_LEAF_PAIRS + metadata.lastLeafPairs;
     std::vector<int32_t> allLeafData(totalPairs * 2);
-    ssize_t bytesRead = pread(fd, allLeafData.data(), totalPairs * 2 * sizeof(int32_t), leafDataStart);
-    close(fd);
+    ssize_t bytesRead = readBytesBuffered(fileName, leafDataStart, allLeafData.data(), totalPairs * 2 * sizeof(int32_t));
     
     if (bytesRead <= 0) {
         return result;
@@ -746,17 +817,11 @@ std::vector<std::pair<int, int>> BTreeSST::toSortedArray(const std::string& file
     uint32_t totalPairs = metadata.total_number_of_pairs;
     std::vector<std::pair<int, int>> sortedData;
     sortedData.reserve(totalPairs);
-    // fread from leaf start page
-    int fd = open(fileName.c_str(), O_RDONLY);
-    if (fd < 0) {
-        std::cerr << "Error: Cannot open file for reading: " << fileName << std::endl;
-        return {};
-    }
+    // Read leaf data using buffer pool
     off_t leafDataStart = static_cast<off_t>(metadata.leaf_start_page) * Page::PAGE_SIZE;
     size_t leafDataSize = totalPairs * 2 * sizeof(int32_t);
     std::vector<int32_t> allLeafData(totalPairs * 2);
-    ssize_t bytesRead = pread(fd, allLeafData.data(), leafDataSize, leafDataStart);
-    close(fd);
+    ssize_t bytesRead = readBytesBuffered(fileName, leafDataStart, allLeafData.data(), leafDataSize);
     if (bytesRead != static_cast<ssize_t>(leafDataSize)) {
         std::cerr << "Error: Failed to read leaf data (read " << bytesRead << " bytes)" << std::endl;
         return {};

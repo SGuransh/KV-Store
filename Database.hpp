@@ -9,12 +9,14 @@
 #include <vector>
 #include "Memtable_ds.hpp"
 #include "LSM/LSMTree.hpp"
+#include "BufferPool/BufferPool.hpp"
 #include <memory>
 
 class Database {
 private:
     std::unique_ptr<Memtable_ds> engine;
     std::unique_ptr<LSMTree> lsmTree;
+    std::unique_ptr<BufferPool> bufferPool;  // Buffer pool for page caching
     std::string databaseName;
     std::string databaseDirectory;
     bool isOpen;
@@ -23,6 +25,9 @@ private:
     // Bloom filter configuration
     uint32_t bloomBitsPerEntry;   // Default: 10 bits per entry
     uint32_t bloomHashCount;       // Default: 3 hash functions
+    
+    // Search mode configuration
+    bool useBTreeSearch;           // Default: true (use B-Tree search), false (use binary search)
 
     bool load_incomplete_file();
 
@@ -38,12 +43,15 @@ public:
     std::vector<std::pair<int, int>> range_scan(int key1, int key2);
     
     // LSM operations
-    void print_lsm_structure() const;
     bool compact_level(int level);
 
     // Bloom filter getters
     uint32_t getBloomBitsPerEntry() const { return bloomBitsPerEntry; }
     uint32_t getBloomHashCount() const { return bloomHashCount; }
+    
+    // Search mode configuration
+    void setUseBTreeSearch(bool useBTree) { useBTreeSearch = useBTree; }
+    bool getUseBTreeSearch() const { return useBTreeSearch; }
 
     // Getters
     int get_size() const;

@@ -1,6 +1,7 @@
 #include "FileOperations.hpp"
 #include "AVL.hpp"
 #include "BTree/BTreeSST.hpp"
+#include "DBConfig.hpp"
 #include <iostream>
 #include <chrono>
 #include <memory>
@@ -87,14 +88,14 @@ using namespace std;
     bool search_helper(Node* node, int key, int& value, bool verbose = true) {
         if (node == nullptr) {
             if (verbose) {
-                std::cout << "Key " << key << " not found in memtable" << std::endl;
+                VERBOSE_PRINT("Key " << key << " not found in memtable");
             }
             return false;
         }
         if (key == node->key) {
             value = node->value;
             if (verbose) {
-                std::cout << "Key " << key << " found in memtable with value " << value << std::endl;
+                VERBOSE_PRINT("Key " << key << " found in memtable with value " << value);
             }
             return true;
         }
@@ -133,6 +134,7 @@ using namespace std;
         collect_all_pairs(node->right, pairs);
     }
 
+
     void delete_tree(Node* node) {
         if (node != nullptr) {
             delete_tree(node->left);
@@ -147,6 +149,20 @@ using namespace std;
             root = nullptr;
         }
         currentSize = 0;
+    }
+
+    int update_helper(Node* node, int key, int value) {
+        if (node == nullptr) {
+            return 0; // Key not found
+        }
+        if (key == node->key) {
+            node->value = value;
+            return 1; // Successfully updated
+        }
+        if (key < node->key) {
+            return update_helper(node->left, key, value);
+        }
+        return update_helper(node->right, key, value);
     }
 
 // -----------------------------------------------------------------------------------------------------------------------------------------------
@@ -168,30 +184,34 @@ using namespace std;
     // Interface implementations
     Node* AVL::insert(int key, int value) {
         if (currentSize >= maxElements) {
-            std::cout << "Memtable is at capacity (" << currentSize << "/" << maxElements << "), attempting to flush to SST" << endl;
+            VERBOSE_PRINT("Memtable is at capacity (" << currentSize << "/" << maxElements << "), attempting to flush to SST");
             if (!flush_to_sst(nextFileNumber, true)) {
                 std::cout << "Error: Failed to flush memtable to SST file." << endl;
                 return nullptr;
             }
-            std::cout << "Successfully flushed memtable to SST. Proceeding with insertion." << endl;
+            VERBOSE_PRINT("Successfully flushed memtable to SST. Proceeding with insertion.");
             nextFileNumber++;
 
             root = insert_helper(root, key, value, currentSize);
             return root;
         }
-        std::cout << "Inserting key: " << key << " with value: " << value << endl;
+        VERBOSE_PRINT("Inserting key: " << key << " with value: " << value);
         int dummy;
         if (search_helper(root, key, dummy, false)) { // Silent duplicate check
-            std::cout << "Error: Key " << key << " already exists in memtable." << endl;
-            return nullptr;
+            // std::cout << "Error: Key " << key << " already exists in memtable." << endl;
+            // return nullptr;
+            if (!update_helper(root, key, value)){
+                std::cout << "Error: Failed to update key " << key << " in memtable." << endl;
+            }
+            return root;
         }
         root = insert_helper(root, key, value, currentSize);
         return root;
     }
 
     bool AVL::search(int key, int& value) {
-        // First search in memtable (verbose)
-        if (search_helper(root, key, value, true)) {
+        // First search in memtable (silent)
+        if (search_helper(root, key, value, false)) {
             return true;
         }
         // If not found in memtable, search in SST files
@@ -199,7 +219,7 @@ using namespace std;
     }
 
     Node* AVL::remove(int key) {
-        std::cout << "Remove operation not implemented" << std::endl;
+        VERBOSE_PRINT("Remove operation not implemented");
         return nullptr;
     }
 
@@ -216,7 +236,7 @@ using namespace std;
         inorder_helper(root, result);
         return result;
     }
-
+    
     Node* AVL::timed_insert(int key, int value, int& time) {
         auto start = std::chrono::high_resolution_clock::now();
         Node* result = insert(key, value);
@@ -245,7 +265,7 @@ using namespace std;
         std::vector<std::pair<int, int>> result;
         
         if (key1 > key2) {
-            std::cout << "Invalid range: key1 (" << key1 << ") must be less than or equal to key2 (" << key2 << ")" << std::endl;
+            VERBOSE_PRINT("Invalid range: key1 (" << key1 << ") must be less than or equal to key2 (" << key2 << ")");
             return result;
         }
 
@@ -268,15 +288,15 @@ using namespace std;
             });
         result.erase(last, result.end());
         
-        std::cout << "Range scan from " << key1 << " to " << key2 << " found " << result.size() << " elements" << std::endl;
+        VERBOSE_PRINT("Range scan from " << key1 << " to " << key2 << " found " << result.size() << " elements");
         return result;
     }
 
     bool AVL::flush_to_sst(int fileNumber, bool isComplete) {
-        std::cout << "Flushing memtable to SST file" << std::endl;
+        VERBOSE_PRINT("Flushing memtable to SST file");
 
         if (currentSize == 0 || root == nullptr) {
-            std::cout << "Memtable is empty, nothing to flush" << std::endl;
+            VERBOSE_PRINT("Memtable is empty, nothing to flush");
             return true;
         }
 
@@ -310,7 +330,7 @@ using namespace std;
     }
 
     bool AVL::load_from_sst(const std::vector<std::pair<int, int>>& data) {
-        std::cout << "Loading " << data.size() << " entries into memtable" << std::endl;
+        VERBOSE_PRINT("Loading " << data.size() << " entries into memtable");
 
         clear_memtable(root, currentSize);
         root = nullptr;
@@ -327,13 +347,13 @@ using namespace std;
             }
         }
 
-        std::cout << "Successfully loaded " << currentSize << " entries from SST data" << std::endl;
+        VERBOSE_PRINT("Successfully loaded " << currentSize << " entries from SST data");
         return true;
     }
 
     void AVL::set_next_file_number(int nextFileNum) {
         nextFileNumber = nextFileNum;
-        std::cout << "Set next file number to: " << nextFileNumber << std::endl;
+        VERBOSE_PRINT("Set next file number to: " << nextFileNumber);
     }
 
     void AVL::set_database_directory(const std::string& dbDir) {
@@ -362,13 +382,11 @@ using namespace std;
             if (FileOperations::file_exists(filename)) {
                 // Use B-Tree get function instead of reading entire file
                 if (btree.get(key, value, filename)) {
-                    std::cout << "Key " << key << " found in SST file " << filename << " with value " << value << std::endl;
                     return true;
                 }
             }
         }
         
-        std::cout << "Key " << key << " not found in any SST files" << std::endl;
         return false;
     }
 

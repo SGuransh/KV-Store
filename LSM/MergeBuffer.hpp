@@ -8,6 +8,9 @@
 #include <string>
 #include <utility>
 
+// Forward declaration
+class BufferPool;
+
 /**
  * MergeBuffer - A fixed-size buffer for streaming merge operations during compaction
  * 
@@ -20,20 +23,24 @@
  * The buffer stores key-value pairs in interleaved format: [k1,v1, k2,v2, ...]
  */
 class MergeBuffer {
-private:
+public:
     static constexpr size_t DEFAULT_BUFFER_SIZE = 1024;  // Number of key-value pairs
     
     int32_t* buffer;      // Interleaved array [k1,v1, k2,v2, ...]
     size_t capacity;      // Maximum number of key-value pairs
-    size_t currentPos;    // Current read position (for input buffers)
     size_t validPairs;    // Number of valid pairs in buffer
+
+private:
+    size_t currentPos;    // Current read position (for input buffers)
+    BufferPool* bufferPool;  // Pointer to shared buffer pool (not owned)
 
 public:
     /**
      * Constructor - allocate buffer with configurable size
      * @param bufferSize Number of key-value pairs to buffer (default 1024)
+     * @param pool Pointer to BufferPool for cached I/O (optional)
      */
-    explicit MergeBuffer(size_t bufferSize = DEFAULT_BUFFER_SIZE);
+    explicit MergeBuffer(size_t bufferSize = DEFAULT_BUFFER_SIZE, BufferPool* pool = nullptr);
     
     /**
      * Destructor - deallocate buffer
@@ -51,9 +58,10 @@ public:
      * Reads the next chunk of data from the SST file using pread
      * @param sstFile Path to the SST file
      * @param fileOffset Current byte offset in the file (updated after read)
+     * @param maxOffset Maximum byte offset to read (end of leaf data, before bloom filter)
      * @return true if data was read, false if end of file or error
      */
-    bool refillFromSST(const std::string& sstFile, size_t& fileOffset);
+    bool refillFromSST(const std::string& sstFile, size_t& fileOffset, size_t maxOffset);
     
     /**
      * Check if buffer contains unprocessed pairs
@@ -71,6 +79,12 @@ public:
      * Consume the minimum pair by advancing the read position
      */
     void consumeMin();
+    
+    /**
+     * Get the number of valid pairs currently in the buffer
+     * @return Number of valid pairs
+     */
+    size_t getValidPairs() const { return validPairs; }
     
     // === Output Buffer Operations ===
     

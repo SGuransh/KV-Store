@@ -8,6 +8,8 @@
 #include <cstdint>
 #include "BTreeNode.hpp"
 #include "../BufferPool/Page.hpp"
+#include "../BufferPool/BufferPool.hpp"
+#include "../BufferPool/PageID.hpp"
 
 #ifdef _WIN32
 #include <io.h>
@@ -49,7 +51,7 @@ struct BuildContext {
     BuildContext(const std::string& fname) 
         : fileName(fname), fd(-1), leafNodeCount(0), internalLevelSizes(nullptr), internalLevelCount(0), totalInternalNodes(0),
           lastLeafPairs(0), nodesPerLevel(nullptr), lastNodeKeys(nullptr),
-          bloomBits(0), bloomBytes(0), bloomHashCount(0) {}
+          bloomBits(0), bloomBytes(0), bloomHashCount(0), leaf_start_page(0), total_number_of_pairs(0) {}
 
     ~BuildContext() {
         cleanup();
@@ -90,9 +92,24 @@ struct BuildContext {
  * All operations take the filename as a parameter.
  */
 class BTreeSST {
+private:
+    BufferPool* bufferPool;  // Pointer to shared buffer pool (not owned)
+
 public:
-    BTreeSST() = default;
+    BTreeSST(BufferPool* pool = nullptr) : bufferPool(pool) {}
     ~BTreeSST() = default;
+    
+    /**
+     * Set the buffer pool to use for I/O operations
+     * @param pool Pointer to BufferPool (not owned by this class)
+     */
+    void setBufferPool(BufferPool* pool) { bufferPool = pool; }
+    
+    /**
+     * Get the BufferPool pointer
+     * @return Pointer to BufferPool (may be nullptr)
+     */
+    BufferPool* getBufferPool() const { return bufferPool; }
     
     /**
      * Build B-Tree from sorted key-value pairs and write to disk
@@ -233,13 +250,34 @@ private:
     // === File Operations ===
     
     /**
-     * Read a page from disk using pread
+     * Read a page from disk using BufferPool if available, otherwise pread
      * @param fileName The SST file to read
      * @param pageId The page ID to read
      * @param page Output parameter for the page data
      * @return true if successful, false otherwise
      */
     bool readPage(const std::string& fileName, uint32_t pageId, Page& page) const;
+    
+    /**
+     * Read multiple consecutive pages efficiently using BufferPool
+     * @param fileName The SST file to read
+     * @param startPageId Starting page ID
+     * @param numPages Number of consecutive pages to read
+     * @param pages Output vector of pages
+     * @return true if successful, false otherwise
+     */
+    bool readPages(const std::string& fileName, uint32_t startPageId, uint32_t numPages, std::vector<Page>& pages) const;
+    
+    /**
+     * Read raw bytes from file using BufferPool for page-aligned reads
+     * Calculates which pages are needed and fetches them from buffer pool
+     * @param fileName The SST file to read
+     * @param offset Byte offset in file
+     * @param buffer Output buffer
+     * @param size Number of bytes to read
+     * @return Number of bytes read, or -1 on error
+     */
+    ssize_t readBytesBuffered(const std::string& fileName, off_t offset, void* buffer, size_t size) const;
     
     /**
      * Write a single page to disk at specified page ID

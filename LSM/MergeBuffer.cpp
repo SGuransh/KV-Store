@@ -1,6 +1,9 @@
 #include "MergeBuffer.hpp"
 #include "../BTree/BTreeNode.hpp"
 #include "../BufferPool/Page.hpp"
+#include "../DBConfig.hpp"
+#include "../BufferPool/BufferPool.hpp"
+#include "../BufferPool/PageID.hpp"
 #include <fcntl.h>
 #include <unistd.h>
 #include <iostream>
@@ -9,8 +12,8 @@
 /**
  * Constructor - allocate buffer with configurable size
  */
-MergeBuffer::MergeBuffer(size_t bufferSize)
-    : capacity(bufferSize), currentPos(0), validPairs(0) {
+MergeBuffer::MergeBuffer(size_t bufferSize, BufferPool* pool)
+    : capacity(bufferSize), validPairs(0), currentPos(0), bufferPool(pool) {
     // Allocate interleaved array: each pair needs 2 int32_t elements
     buffer = new int32_t[capacity * 2];
     std::memset(buffer, 0, capacity * 2 * sizeof(int32_t));
@@ -27,36 +30,95 @@ MergeBuffer::~MergeBuffer() {
 
 /**
  * Refill buffer from SST file starting at given file offset
- * 
- * SST file structure:
- * - Page 0: Metadata
- * - Pages 1 to N: Internal nodes (if tree height > 1)
- * - Pages N+1 onwards: Leaf nodes with interleaved key-value pairs
- * 
- * The leaf section is a continuous stream of [k1,v1, k2,v2, ...] across pages
+ * Uses BufferPool if available, otherwise falls back to pread
  */
-bool MergeBuffer::refillFromSST(const std::string& sstFile, size_t& fileOffset) {
-    // Open file for reading
-    int fd = open(sstFile.c_str(), O_RDONLY);
-    if (fd < 0) {
-        std::cerr << "Error: Cannot open SST file for reading: " << sstFile << std::endl;
+bool MergeBuffer::refillFromSST(const std::string& sstFile, size_t& fileOffset, size_t maxOffset) {
+    // Check if we've reached the end of leaf data
+    if (fileOffset >= maxOffset) {
+        validPairs = 0;
+        currentPos = 0;
         return false;
     }
     
     // Calculate how many bytes to read (capacity pairs * 2 elements * 4 bytes each)
     size_t bytesToRead = capacity * 2 * sizeof(int32_t);
     
-    // Read data from current file offset
-    ssize_t bytesRead = pread(fd, buffer, bytesToRead, fileOffset);
-    close(fd);
+    // Don't read past end of leaf data
+    if (fileOffset + bytesToRead > maxOffset) {
+        bytesToRead = maxOffset - fileOffset;
+    }
     
-    if (bytesRead < 0) {
-        std::cerr << "Error: Failed to read from SST file: " << sstFile << std::endl;
-        return false;
+    ssize_t bytesRead = 0;
+    
+    // Use BufferPool if available
+    if (bufferPool != nullptr) {
+        // Read using page-aligned BufferPool access
+        size_t currentOffset = fileOffset;
+        size_t totalBytesRead = 0;
+        char* destPtr = reinterpret_cast<char*>(buffer);
+        
+        while (totalBytesRead < bytesToRead) {
+            // Calculate which page we need
+            size_t pageNumber = currentOffset / Page::PAGE_SIZE;
+            size_t offsetInPage = currentOffset % Page::PAGE_SIZE;
+            size_t bytesInThisPage = std::min(bytesToRead - totalBytesRead, Page::PAGE_SIZE - offsetInPage);
+            
+            // Create PageID for this page
+            PageID pageId(sstFile, pageNumber * Page::PAGE_SIZE);
+            
+            // Try to get page from cache
+            Page* cachedPage = bufferPool->getPage(pageId);
+            
+            if (cachedPage != nullptr) {
+                // Cache hit - copy data from cached page
+                std::memcpy(destPtr + totalBytesRead, cachedPage->getData() + offsetInPage, bytesInThisPage);
+            } else {
+                // Cache miss - load page from disk
+                Page newPage;
+                int fd = open(sstFile.c_str(), O_RDONLY);
+                if (fd < 0) {
+                    std::cerr << "Error: Cannot open SST file: " << sstFile << std::endl;
+                    return false;
+                }
+                
+                ssize_t pageBytes = pread(fd, newPage.getData(), Page::PAGE_SIZE, pageNumber * Page::PAGE_SIZE);
+                close(fd);
+                
+                if (pageBytes <= 0) {
+                    break;  // End of file or error
+                }
+                
+                // Add page to buffer pool
+                bufferPool->putPage(pageId, newPage);
+                
+                // Copy data from newly loaded page
+                std::memcpy(destPtr + totalBytesRead, newPage.getData() + offsetInPage, bytesInThisPage);
+            }
+            
+            totalBytesRead += bytesInThisPage;
+            currentOffset += bytesInThisPage;
+        }
+        
+        bytesRead = totalBytesRead;
+    } else {
+        // Fallback to direct pread if no BufferPool
+        int fd = open(sstFile.c_str(), O_RDONLY);
+        if (fd < 0) {
+            std::cerr << "Error: Cannot open SST file for reading: " << sstFile << std::endl;
+            return false;
+        }
+        
+        bytesRead = pread(fd, buffer, bytesToRead, fileOffset);
+        close(fd);
+        
+        if (bytesRead < 0) {
+            std::cerr << "Error: Failed to read from SST file: " << sstFile << std::endl;
+            return false;
+        }
     }
     
     if (bytesRead == 0) {
-        // End of file reached
+        // End of leaf data reached
         validPairs = 0;
         currentPos = 0;
         return false;
