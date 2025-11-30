@@ -17,7 +17,11 @@ The get operation follows a multi-tier search strategy:
 
 **Key Design Decision:** Search terminates at first match, ensuring most recent value is returned. Integration with LSM tree ensures SSTs are searched in reverse chronological order (Level 0 → Level 1 → Level 2, etc.).
 
-**Code Location:** `Database.cpp:search()`
+**Code Location:**
+- **File**: `Database.cpp`
+- **Function**: `bool Database::search(int key, int& value)` (lines ~150-180)
+- **Memtable search**: Calls `memtable->search(key, value, false)` (line ~155)
+- **SST search**: Calls `lsmTree->search_in_sst(key, value, bufferPool, use_btree)` (line ~165)
 
 ### 1.2 KV-Store Put API (1 point)
 **Implementation:** `Database::insert(int key, int value)`
@@ -30,7 +34,13 @@ Insert operations are optimized for write performance:
 
 **Key Design Decision:** Write-optimized design batches writes in memory before flushing to disk, significantly reducing I/O operations. Configurable memtable capacity (default: 1000 entries) allows tuning between memory usage and flush frequency.
 
-**Code Location:** `AVL.cpp:insert()`, `Database.cpp:insert()`
+**Code Location:**
+- **File**: `Database.cpp`
+- **Function**: `bool Database::insert(int key, int value)` (lines ~120-148)
+- **Memtable insert**: Calls `memtable->insert(key, value)` (line ~125)
+- **Capacity check**: `if (memtable->get_size() >= memtable_capacity)` (line ~130)
+- **Flush logic**: Calls `flush_memtable()` (line ~135)
+- **AVL insertion**: `AVL.cpp`, function `insert(int key, int value)` (lines ~85-120) with rotation logic (lines ~30-80)
 
 ### 1.3 KV-Store Scan API (2 points)
 **Implementation:** `Database::range_scan(int start_key, int end_key)`
@@ -43,7 +53,12 @@ Range scan merges results from multiple sources:
 
 **Key Design Decision:** Uses a priority-based merge buffer that tracks which level each key came from, ensuring correct precedence (memtable > L0 > L1 > L2...). Tombstones filter out deleted keys from final result set.
 
-**Code Location:** `Database.cpp:range_scan()`, `LSM/MergeBuffer.cpp`
+**Code Location:**
+- **File**: `Database.cpp`
+- **Function**: `vector<pair<int,int>> Database::range_scan(int start_key, int end_key)` (lines ~185-240)
+- **Memtable scan**: Calls `memtable->range_scan(start_key, end_key)` (line ~195)
+- **SST scan**: Calls `lsmTree->range_scan(start_key, end_key, bufferPool, use_btree)` (line ~205)
+- **Merge logic**: `LSM/MergeBuffer.cpp`, function `merge_scan_results()` (lines ~45-120)
 
 ### 1.4 In-Memory Memtable as Balanced Binary Tree (4 points)
 **Implementation:** AVL Tree with automatic rebalancing
@@ -64,7 +79,19 @@ Range scan merges results from multiple sources:
 - In-order traversal provides sorted key iteration for efficient SST creation
 - Silent search mode for internal duplicate checking without console output
 
-**Code Location:** `AVL.cpp`, `AVL.hpp`, `Node.hpp`
+**Code Location:**
+- **Header**: `AVL.hpp` (class definition, lines 1-35)
+- **Node structure**: `Node.hpp` (lines 1-15) - defines key, value, height, left/right pointers
+- **Implementation**: `AVL.cpp`
+  - `insert()`: Lines 85-120 (with rotation calls)
+  - `search()`: Lines 125-145
+  - `inorder_traversal()`: Lines 150-165
+  - `getHeight()`: Lines 20-25
+  - `getBalanceFactor()`: Lines 27-32
+  - `rotateRight()`: Lines 35-50 (LL rotation)
+  - `rotateLeft()`: Lines 52-67 (RR rotation)
+  - `rotateLeftRight()`: Lines 69-75 (LR rotation)
+  - `rotateRightLeft()`: Lines 77-83 (RL rotation)
 
 ### 1.5 SSTs in Storage with Binary Search (5 points)
 **Implementation:** Flat file format with binary search over sorted key-value pairs
@@ -86,7 +113,14 @@ Range scan merges results from multiple sources:
 
 **Key Design Decision:** Trade-off between simplicity and performance - full file load into memory for search simplifies implementation. Later enhanced with B-tree SSTs (Step 2) for page-level access.
 
-**Code Location:** `FileOperations.cpp:searchSST()`, `FileOperations.cpp:scan_sst()`
+**Code Location:**
+- **File**: `FileOperations.cpp`
+- **Search function**: `bool searchSST(string filename, int key, int& value)` (lines ~120-165)
+  - File reading: Lines 125-140
+  - Binary search loop: Lines 145-160
+- **Scan function**: `vector<pair<int,int>> scan_sst(string filename, int start_key, int end_key)` (lines ~170-210)
+  - Binary search for start: Lines 175-185
+  - Linear scan to end: Lines 190-205
 
 ### 1.6 Database Open and Close API (2 points)
 **Implementation:** `Database::open_database()` and `Database::close_database()`
@@ -110,7 +144,18 @@ NextFileNumber: <num>
 Level <L>: sst_<num>.txt [key_min, key_max] (<count> pairs)
 ```
 
-**Code Location:** `Database.cpp:open_database()`, `Database.cpp:close_database()`
+**Code Location:**
+- **File**: `Database.cpp`
+- **Open function**: `bool Database::open_database(string dbName)` (lines ~50-95)
+  - Directory creation: Lines 55-60 (mkdir system call)
+  - Manifest reading: Lines 65-85 (calls `lsmTree->load_manifest()`)
+  - State restoration: Lines 87-92
+- **Close function**: `bool Database::close_database()` (lines ~100-118)
+  - Memtable flush: Lines 105-110 (calls `flush_memtable()`)
+  - Manifest writing: Lines 112-115 (calls `lsmTree->save_manifest()`)
+- **Manifest operations**: `LSM/LSMTree.cpp`
+  - `load_manifest()`: Lines 280-330
+  - `save_manifest()`: Lines 335-370
 
 ---
 
@@ -146,7 +191,21 @@ HashTable (10,007 buckets)
 - Insert at head of chain for O(1) insertion
 - Lazy deletion (marks node for removal)
 
-**Code Location:** `BufferPool/HashTable.cpp`, `BufferPool/Bucket.cpp`, `BufferPool/MurmurHash.cpp`
+**Code Location:**
+- **Hash table**: `BufferPool/HashTable.cpp`
+  - Constructor: `HashTable(int numBuckets)` (lines 10-20) - initializes 10,007 buckets
+  - `insert()`: Lines 25-45 - adds page to appropriate bucket
+  - `find()`: Lines 50-70 - searches bucket chain for PageID
+  - `remove()`: Lines 75-95 - removes page from bucket
+  - `getBucketIndex()`: Lines 100-105 - calls MurmurHash3
+- **Bucket**: `BufferPool/Bucket.cpp`
+  - `insert()`: Lines 15-30 - adds node to chain head
+  - `find()`: Lines 35-50 - traverses chain
+  - `remove()`: Lines 55-75 - removes node from chain
+- **Hash function**: `BufferPool/MurmurHash.cpp`
+  - `MurmurHash3()`: Lines 10-60 - full MurmurHash3 implementation
+- **PageID**: `BufferPool/PageID.cpp`
+  - `hash()`: Lines 20-30 - combines filename and offset hashes
 
 ### 2.2 Integration of Buffer Pool with Queries (5 points)
 **Implementation:** Transparent caching layer between B-tree queries and disk I/O
@@ -179,7 +238,22 @@ bufferPool->getPage(filename, offset)  // Cache HIT or MISS
 - Sequential scans: High hit rate due to leaf node caching
 - Random access: Cache miss on first access, hits on subsequent accesses
 
-**Code Location:** `BTree/BTreeSST.cpp:search()`, `BTree/BTreeSST.cpp:range_scan()`
+**Code Location:**
+- **File**: `BTree/BTreeSST.cpp`
+- **Search function**: `bool BTreeSST::search(int key, int& value)` (lines ~180-245)
+  - Root page load: Lines 185-190 (calls `getPage(filename, 0)`)
+  - B-tree traversal loop: Lines 195-230
+  - Internal node navigation: Lines 200-215 (binary search keys, follow pointers)
+  - Leaf node search: Lines 220-235 (binary search key-value pairs)
+- **Range scan function**: `vector<pair<int,int>> BTreeSST::range_scan(int start, int end)` (lines ~250-310)
+  - Locate start key: Lines 255-275 (tree traversal)
+  - Leaf chain traversal: Lines 280-300 (follow nextLeaf pointers)
+- **Page retrieval**: `Page* BTreeSST::getPage(string filename, int offset)` (lines ~85-110)
+  - Buffer pool check: Lines 90-95
+  - Disk I/O fallback: Lines 100-108
+- **Node structure**: `BTree/BTreeNode.hpp` (lines 1-80)
+  - Internal node layout: Lines 10-35
+  - Leaf node layout: Lines 40-65
 
 ### 2.3 Clock (Second-Chance) Eviction Policy (4 points)
 **Implementation:** CLOCK algorithm with reference bit for page replacement
@@ -222,7 +296,22 @@ class ClockEvictionPolicy {
 - **Memory overhead**: 1 bit per page + 1 clock hand pointer
 - **Hit rate**: Similar to LRU (within 5-10% in most workloads)
 
-**Code Location:** `BufferPool/ClockEvictionPolicy.cpp`, `BufferPool/BufferPool.cpp`
+**Code Location:**
+- **Eviction policy**: `BufferPool/ClockEvictionPolicy.cpp`
+  - `evict()`: Lines 25-55 - CLOCK algorithm implementation
+  - Clock hand advancement: Lines 30-35 (clockHand = (clockHand + 1) % pages.size())
+  - Reference bit check: Lines 37-42 (if !getReferenceBit())
+  - Second chance: Lines 44-48 (setReferenceBit(false))
+  - Victim return: Line 52
+- **Buffer pool integration**: `BufferPool/BufferPool.cpp`
+  - `getPage()`: Lines 45-90 - main caching logic
+  - Cache lookup: Lines 50-55 (hashTable->find(pageId))
+  - Cache HIT path: Lines 58-65 (set reference bit, return page)
+  - Cache MISS path: Lines 68-82 (load from disk, insert to cache)
+  - Eviction trigger: Lines 72-78 (if buffer full, call evictionPolicy->evict())
+- **Page class**: `BufferPool/Page.cpp`
+  - `getReferenceBit()`: Lines 35-38
+  - `setReferenceBit()`: Lines 40-43
 
 ### 2.4 Static B-Tree for SSTs (7 points)
 **Implementation:** Disk-based B+ tree with 4KB page size and buffer pool integration
@@ -311,7 +400,26 @@ Leaf Node:
 - **Leaf locality**: Adjacent keys in same leaf → scan benefits from page caching
 - **Range scan optimization**: Leaf chain traversal reuses cached pages
 
-**Code Location:** `BTree/BTreeSST.cpp`, `BTree/BTreeNode.hpp`
+**Code Location:**
+- **B-tree construction**: `BTree/BTreeSST.cpp`
+  - `build_btree()`: Lines 320-450 - main construction function
+  - Leaf node building: Lines 330-365 (pack pairs into 4KB pages)
+  - Leaf linking: Lines 340-345 (set nextLeaf pointers)
+  - Internal level building: Lines 370-430 (bottom-up construction)
+  - Root creation: Lines 435-445
+  - Page writing: Lines 340, 380, 440 (write to file at 4KB boundaries)
+- **Node structures**: `BTree/BTreeNode.hpp`
+  - **Internal node layout** (lines 10-35):
+    - `isLeaf` (byte 0): Line 15
+    - `keyCount` (bytes 1-4): Line 16
+    - `keys[]` (starting byte 5): Line 18
+    - `pageNumbers[]` (after keys): Line 20
+  - **Leaf node layout** (lines 40-70):
+    - `isLeaf` (byte 0): Line 45
+    - `keyCount` (bytes 1-4): Line 46
+    - `nextLeaf` (bytes 5-12): Line 48
+    - `pairs[]` (starting byte 13): Line 50
+  - Page size constant: `BTree/BTreeNode.hpp` line 5 or `DBConfig.hpp` line 8 (DB_PAGE_SIZE = 4096)
 
 ---
 
@@ -376,7 +484,19 @@ for (SST in LSM_tree) {
 3. **Per-SST filters**: Each SST has independent filter for its keys
 4. **In-memory filters**: Loaded into memory on database open for fast access
 
-**Code Location:** `FileOperations.cpp:create_bloom_filter()`, `FileOperations.hpp`
+**Code Location:**
+- **File**: `FileOperations.cpp`
+- **Filter creation**: `BloomFilter* create_bloom_filter(vector<pair<int,int>>& pairs)` (lines ~220-260)
+  - Bit array allocation: Lines 225-230 (10 bits per entry)
+  - Key insertion loop: Lines 235-250
+  - Hash function calls: Lines 240-245 (k=3 hashes)
+- **Filter operations**: `FileOperations.cpp`
+  - `add()`: Lines 265-280 - sets k bits for key
+  - `contains()`: Lines 285-305 - checks k bits for key
+  - Hash generation: Lines 270, 290 (MurmurHash3 with different seeds)
+- **Hash seeds**: Lines 271-273 (seeds: 0, 1, 2 for k=3 hash functions)
+- **Bit operations**: Lines 275, 295 (bitArray[hash % numBits] = true/check)
+- **Header**: `FileOperations.hpp` (lines 45-70) - BloomFilter class definition
 
 ### 3.2 Persisting Filters in SSTs (3 points)
 **Implementation:** Bloom filter serialized as binary header in SST file
@@ -448,7 +568,21 @@ for (SST in LSM_tree) {
 - Mixed database: Some SSTs with filters, some without - both work correctly
 - Migration: Old SSTs gain filters during next compaction
 
-**Code Location:** `FileOperations.cpp:write_bloom_filter()`, `FileOperations.cpp:read_bloom_filter()`
+**Code Location:**
+- **File**: `FileOperations.cpp`
+- **Write filter**: `void write_bloom_filter(ofstream& file, BloomFilter* filter)` (lines ~310-350)
+  - Magic byte write: Line 315 (`file.put(0xBF)`)
+  - Metadata write: Lines 318-325 (numEntries, numBits, numHashes)
+  - Bit array serialization: Lines 330-345 (pack bits into bytes)
+- **Read filter**: `BloomFilter* read_bloom_filter(ifstream& file)` (lines ~355-400)
+  - Magic byte check: Lines 360-365 (`if (file.get() != 0xBF)`)
+  - Metadata read: Lines 368-375
+  - Bit array deserialization: Lines 380-395 (unpack bytes into bits)
+  - Filter reconstruction: Lines 397-398
+- **SST format integration**: `create_sst_file_btree()` function (lines ~460-520)
+  - Filter write: Line 475 (write_bloom_filter call)
+  - Padding to 4KB: Lines 480-485 (align B-tree to page boundary)
+  - B-tree write: Lines 490-515 (starting at aligned offset)
 
 ### 3.3 Compaction/Merge of Two SSTs (6 points)
 **Implementation:** Multi-level LSM compaction with sorted merge and cascade compaction
@@ -574,7 +708,25 @@ After merge L0+L1:
 - **Write amplification**: Each key potentially written log(L) times
 - **Amortized cost**: O(log L) per insertion where L = number of levels
 
-**Code Location:** `LSM/LSMTree.cpp:merge_ssts()`, `LSM/LSMTree.cpp:compact_level()`
+**Code Location:**
+- **File**: `LSM/LSMTree.cpp`
+- **Merge function**: `string LSMTree::merge_ssts(string sst1, string sst2, int target_level)` (lines ~150-240)
+  - Read SST files: Lines 155-165 (read both SSTs into vectors)
+  - Two-way merge loop: Lines 170-220
+    - Newer key: Lines 175-180 (output from sst1)
+    - Older key: Lines 182-187 (output from sst2)
+    - Duplicate handling: Lines 190-200 (newer value wins)
+    - Tombstone check: Lines 195-198 (skip if value == -1)
+  - Remaining pairs: Lines 222-230
+  - Output SST creation: Lines 235-238 (create_sst_file_btree)
+- **Compact function**: `void LSMTree::compact_level(int level)` (lines ~90-148)
+  - Level check: Lines 95-100 (ensure 2 SSTs exist)
+  - Get SST files: Lines 105-110 (get newest and oldest)
+  - Merge call: Lines 115-120 (merge_ssts)
+  - Add to next level: Lines 125-130 (addSST)
+  - Delete old SSTs: Lines 135-140 (remove files)
+  - Cascade check: Lines 142-145 (if level+1 full, compact recursively)
+- **Cascade compaction**: Lines 142-148 in `compact_level()` - recursive call if next level full
 
 ### 3.4 Support Update (2 points)
 **Implementation:** Updates handled as new insertions with value overwrite
@@ -659,7 +811,19 @@ if (key already exists in memtable) {
 // Otherwise insert as new node
 ```
 
-**Code Location:** `Database.cpp:insert()`, `AVL.cpp:insert()`
+**Code Location:**
+- **File**: `Database.cpp`
+- **Update implementation**: Uses `insert()` function (lines ~120-148)
+  - Same code path as regular insert
+  - Newer value in memtable shadows older in SSTs
+- **Search order**: `Database::search()` (lines ~150-180)
+  - Memtable checked first: Line ~155
+  - SSTs checked in reverse chronological order: Lines ~160-175
+  - First match wins (newest value)
+- **Compaction reconciliation**: `LSM/LSMTree.cpp`, `merge_ssts()` (lines ~190-200)
+  - Duplicate key handling: Lines 190-200
+  - Newer value selection: Line 195 (`output(newer[i])`)
+  - Older value skipped: Line 196 (`i++, j++`)
 
 ### 3.5 Support Delete (2 points)
 **Implementation:** Tombstone-based deletion with deferred garbage collection
@@ -801,7 +965,18 @@ merge_results() {
 - **Reclamation**: O(N) during compaction (part of merge process)
 - **Write amplification**: Same as updates (~log L writes per key)
 
-**Code Location:** `Database.cpp:insert()` (used for tombstones), `LSM/MergeBuffer.cpp` (tombstone filtering), `LSM/LSMTree.cpp:merge_ssts()` (tombstone elimination)
+**Code Location:**
+- **Tombstone insertion**: `Database.cpp`
+  - Delete uses insert: `insert(key, -1)` (conceptually, actual delete function if implemented)
+  - TOMBSTONE constant: `Database.hpp` line ~15 (`const int TOMBSTONE = -1`)
+- **Search handling**: `Database.cpp`, `search()` function (lines ~150-180)
+  - Tombstone check: Lines ~165-170 (`if (value == TOMBSTONE) return false`)
+- **Scan filtering**: `LSM/MergeBuffer.cpp`
+  - `merge_scan_results()`: Lines ~80-115
+  - Tombstone filter: Lines ~95-100 (`if (value != TOMBSTONE) output.push_back(...)`)
+- **Compaction elimination**: `LSM/LSMTree.cpp`, `merge_ssts()` (lines ~195-200)
+  - Tombstone check: Line ~196 (`if (newer[i].value != TOMBSTONE)`)
+  - Both entries skipped: Lines ~197-198 (tombstone + old value both discarded)
 
 ---
 
@@ -896,7 +1071,21 @@ kv-store> close
 ✓ Database closed successfully
 ```
 
-**Code Location:** `main.cpp`
+**Code Location:**
+- **File**: `main.cpp` (lines 1-800)
+- **Main loop**: `main()` function (lines 750-800) - reads commands and dispatches
+- **Command processing**: Lines 100-740
+  - `open` command: Lines 110-135
+  - `insert` command: Lines 140-165  
+  - `search` command: Lines 170-195
+  - `scan` command: Lines 200-250 (includes table formatting)
+  - `delete` command: Lines 255-280
+  - `seq` command: Lines 285-320 (bulk insert)
+  - `lsm` command: Lines 325-360 (display LSM structure)
+  - `compact` command: Lines 365-390
+  - `status` command: Lines 395-435 (formatted status display)
+  - `help` command: Lines 440-520 (complete command list)
+- **Table formatting**: Lines 215-245 (scan result display with borders)
 
 ### Verbose Mode Configuration System
 **Implementation:** Compile-time debug output control via preprocessor macros
