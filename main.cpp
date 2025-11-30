@@ -7,19 +7,19 @@
 
 void printHelp() {
     std::cout << "\n=== KV-Store Database Commands ===" << std::endl;
-    std::cout << "  open <db_name>          - Open/create a database" << std::endl;
-    std::cout << "  close                   - Close current database" << std::endl;
-    std::cout << "  insert <key> <value>    - Insert a key-value pair" << std::endl;
-    std::cout << "  seq <start> <end> <step>      - Insert sequential K-V pairs that are identical" << std::endl;
-    std::cout << "  search <key>            - Search for a key" << std::endl;
-    std::cout << "  scan <key1> <key2>      - Range scan from key1 to key2" << std::endl;
-    std::cout << "  size                    - Show current memtable size" << std::endl;
-    std::cout << "  status                  - Show database status" << std::endl;
-    std::cout << "  lsm                     - Show LSM tree structure" << std::endl;
-    std::cout << "  compact <level>         - Manually compact a level" << std::endl;
-    std::cout << "  help                    - Show this help message" << std::endl;
-    std::cout << "  clear                   - Clear the console screen" << std::endl;
-    std::cout << "  exit                    - Exit the program" << std::endl;
+    std::cout << "  open <db_name>            - Open/create a database" << std::endl;
+    std::cout << "  close                     - Close current database" << std::endl;
+    std::cout << "  insert <key> <value>      - Insert a key-value pair" << std::endl;
+    std::cout << "  seq <start> <end> <step>  - Insert sequential K-V pairs that are identical" << std::endl;
+    std::cout << "  search <key>              - Search for a key" << std::endl;
+    std::cout << "  scan <key1> <key2>        - Range scan from key1 to key2" << std::endl;
+    std::cout << "  size                      - Show current memtable size" << std::endl;
+    std::cout << "  status                    - Show database status" << std::endl;
+    std::cout << "  lsm                       - Show LSM tree structure" << std::endl;
+    std::cout << "  compact <level>           - Manually compact a level" << std::endl;
+    std::cout << "  help                      - Show this help message" << std::endl;
+    std::cout << "  clear                     - Clear the console screen" << std::endl;
+    std::cout << "  exit                      - Exit the program" << std::endl;
     std::cout << "===================================" << std::endl;
 }
 
