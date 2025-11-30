@@ -113,7 +113,6 @@ void BTreeSST::calculateAndAllocateArrays(BuildContext& ctx, size_t dataSize) {
             levelSizes.push_back(currentLevelSize);
 
             // Calculate number of keys in last node at this level
-            size_t full_nodes = ctx.leafNodeCount / MAX_INTERNAL_CHILDREN;
             size_t remainder = ctx.leafNodeCount % MAX_INTERNAL_CHILDREN;
             if (remainder > 0) {
                 values_in_last_nodes.push_back(remainder - 1);
@@ -189,7 +188,7 @@ int32_t* BTreeSST::buildLeafNodes(BuildContext& ctx, const std::vector<std::pair
         max_per_node[page] = max;
     }
 
-    ssize_t written = pwrite(ctx.fd, interleavedData, totalElements * sizeof(int32_t), (1 + ctx.totalInternalNodes) * Page::PAGE_SIZE);
+    pwrite(ctx.fd, interleavedData, totalElements * sizeof(int32_t), (1 + ctx.totalInternalNodes) * Page::PAGE_SIZE);
     delete[] interleavedData;
     
     std::cout << "  All " << ctx.leafNodeCount << " leaf pages written directly to disk" << std::endl;
@@ -422,7 +421,6 @@ bool BTreeSST::get(int key, int& value, const std::string& fileName, bool useBTr
         std::vector<uint8_t> bloomFilter;
         if (readBloomFilter(fileName, metadata, bloomFilter)) {
             // Check if key might be in the bloom filter
-            bool mightContain = true;
             for (uint32_t i = 0; i < metadata.bloom_hash_count; i++) {
                 uint32_t position = bloomHash(key, i, metadata.bloom_bits);
                 if (!bloomFilterTestBit(bloomFilter, position)) {
