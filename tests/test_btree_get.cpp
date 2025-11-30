@@ -30,16 +30,14 @@ std::string createTestSST(const std::vector<std::pair<int, int>>& data) {
     if (ctx.leafNodeCount > 1) {
         std::vector<size_t> levelSizes;
         size_t currentLevelSize = ctx.leafNodeCount;
-        size_t totalInternalNodes = 0;
 
         while (currentLevelSize > 1) {
             currentLevelSize = (currentLevelSize + MAX_INTERNAL_CHILDREN - 1) / MAX_INTERNAL_CHILDREN;
             levelSizes.push_back(currentLevelSize);
-            totalInternalNodes += currentLevelSize;
+            ctx.totalInternalNodes += currentLevelSize;
         }
 
         ctx.internalLevelCount = levelSizes.size();
-        ctx.totalInternalNodes = totalInternalNodes;
         ctx.treeHeight = ctx.internalLevelCount + 1;
 
         if (ctx.internalLevelCount > 0) {
@@ -156,12 +154,10 @@ bool test_multi_level_tree() {
     } else {
         // Calculate internal levels
         size_t currentLevelSize = leafCount;
-        size_t totalInternalNodes = 0;
         size_t internalLevelCount = 0;
         
         while (currentLevelSize > 1) {
             currentLevelSize = (currentLevelSize + MAX_INTERNAL_CHILDREN - 1) / MAX_INTERNAL_CHILDREN;
-            totalInternalNodes += currentLevelSize;
             internalLevelCount++;
         }
         
@@ -252,12 +248,10 @@ bool test_large_dataset() {
         metadata.rootPageId = 1;
     } else {
         size_t currentLevelSize = leafCount;
-        size_t totalInternalNodes = 0;
         size_t internalLevelCount = 0;
         
         while (currentLevelSize > 1) {
             currentLevelSize = (currentLevelSize + MAX_INTERNAL_CHILDREN - 1) / MAX_INTERNAL_CHILDREN;
-            totalInternalNodes += currentLevelSize;
             internalLevelCount++;
         }
         
@@ -426,12 +420,10 @@ bool test_very_large_dataset() {
         metadata.rootPageId = 1;
     } else {
         size_t currentLevelSize = leafCount;
-        size_t totalInternalNodes = 0;
         size_t internalLevelCount = 0;
         
         while (currentLevelSize > 1) {
             currentLevelSize = (currentLevelSize + MAX_INTERNAL_CHILDREN - 1) / MAX_INTERNAL_CHILDREN;
-            totalInternalNodes += currentLevelSize;
             internalLevelCount++;
         }
         
