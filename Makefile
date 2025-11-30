@@ -58,6 +58,11 @@ all: $(TESTS) test main test-btree-auto test-file-operations
 main: main.cpp $(SOURCES)
 	$(CXX) $(CXXFLAGS) $^ -o $@
 
+# BTree read with setup test (needs both BTree and LSM) - must come before pattern rule
+$(OUT_DIR)/test_btree_read_with_setup: $(TEST_DIR)/test_btree_read_with_setup.cpp $(LSM_SOURCES)
+	@mkdir -p $(OUT_DIR)
+	$(CXX) $(CXXFLAGS) -I. $^ -o $@
+
 # Rule for building test executables directly from test + sources
 $(OUT_DIR)/%: $(TEST_DIR)/%.cpp $(SOURCES)
 	@mkdir -p $(OUT_DIR)
