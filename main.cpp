@@ -9,10 +9,11 @@ void printHelp() {
     std::cout << "\n=== KV-Store Database Commands ===" << std::endl;
     std::cout << "  open <db_name>            - Open/create a database" << std::endl;
     std::cout << "  close                     - Close current database" << std::endl;
-    std::cout << "  insert <key> <value>      - Insert a key-value pair" << std::endl;
+    std::cout << "  insert/i <key> <value>    - Insert a key-value pair" << std::endl;
     std::cout << "  seq <start> <end> <step>  - Insert sequential K-V pairs that are identical" << std::endl;
-    std::cout << "  search <key>              - Search for a key" << std::endl;
+    std::cout << "  search/s <key>            - Search for a key" << std::endl;
     std::cout << "  scan <key1> <key2>        - Range scan from key1 to key2" << std::endl;
+    std::cout << "  delete/d <key>            - Delete a key" << std::endl;
     std::cout << "  size                      - Show current memtable size" << std::endl;
     std::cout << "  status                    - Show database status" << std::endl;
     std::cout << "  lsm                       - Show LSM tree structure" << std::endl;
@@ -168,10 +169,14 @@ int main() {
                     continue;
                 }
 
-                if (db.search(key, value)) {
-                    std::cout << "✓ Found: " << key << " -> " << value << std::endl;
-                } else {
+                if (!db.search(key, value)) {
                     std::cout << "✗ Key " << key << " not found" << std::endl;
+                } else if (value == -1)
+                {
+                    std::cout << "✓ Key " << key << " is marked as deleted" << std::endl;
+                }
+                 else {
+                    std::cout << "✓ Found: " << key << " -> " << value << std::endl;
                 }
             }
             else if (command == "scan") {
@@ -195,11 +200,44 @@ int main() {
                     std::cout << "┌──────────┬──────────┐" << std::endl;
                     std::cout << "│   Key    │  Value   │" << std::endl;
                     std::cout << "├──────────┼──────────┤" << std::endl;
+                    int count = 0;
                     for (const auto& [k, v] : results) {
+                        if (v == -1) {
+                            continue;
+                        }
+                        count++;
                         std::cout << "│ " << std::setw(8) << k << " │ " 
                                   << std::setw(8) << v << " │" << std::endl;
                     }
                     std::cout << "└──────────┴──────────┘" << std::endl;
+
+                    if (count == 0) {
+                        std::cout << "All keys in the range are marked as deleted." << std::endl;
+                    }
+                }
+            }
+            else if (command == "delete" || command == "d") {
+                if (!db.is_open()) {
+                    std::cout << "Error: No database is open. Use 'open <db_name>' first" << std::endl;
+                    continue;
+                }
+
+                int key;
+                if (!(iss >> key)) {
+                    std::cout << "Error: Please provide a key to delete" << std::endl;
+                    std::cout << "Usage: delete <key>" << std::endl;
+                    continue;
+                }
+
+                int value;
+                if (!db.search(key, value)) {
+                    std::cout << "✗ Key " << key << " not found for deletion" << std::endl;
+                }
+
+                if (db.insert(key, -1)) { // Using -1 as a tombstone value
+                    std::cout << "✓ Deleted key " << key << std::endl;
+                } else {
+                    std::cout << "✗ Key " << key << " not found for deletion" << std::endl;
                 }
             }
             else if (command == "size") {
