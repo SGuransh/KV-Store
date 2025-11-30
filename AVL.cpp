@@ -268,7 +268,6 @@ using namespace std;
             });
         result.erase(last, result.end());
         
-        std::cout << "Range scan from " << key1 << " to " << key2 << " found " << result.size() << " elements" << std::endl;
         return result;
     }
 

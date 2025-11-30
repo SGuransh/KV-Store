@@ -8,6 +8,8 @@
 #include "MemtableFactory.hpp"
 #include "BTree/BTreeSST.hpp"
 #include "LSM/LSMTree.hpp"
+#include "BufferPool/BufferPool.hpp"
+#include "BufferPool/ClockEvictionPolicy.hpp"
 
 
     // Memtable_ds* engine;
@@ -20,6 +22,11 @@
         : bloomBitsPerEntry(bitsPerEntry), bloomHashCount(hashCount) {
         // engine = new AVL(memtableCapacity);
         engine = create_memtable(MemtableType::AVL, memtableCapacity);
+        
+        // Create BufferPool with 10 pages and CLOCK eviction (small to force evictions)
+        auto evictionPolicy = std::make_unique<ClockEvictionPolicy>();
+        bufferPool = std::make_unique<BufferPool>(10, std::move(evictionPolicy));
+        
         isOpen = false;
         nextFileNumber = 1;
     }
@@ -92,8 +99,8 @@
         engine->set_next_file_number(nextFileNumber);
         engine->set_database_directory(databaseDirectory);
 
-        // Initialize LSMTree
-        lsmTree = std::make_unique<LSMTree>(databaseDirectory);
+        // Initialize LSMTree with BufferPool
+        lsmTree = std::make_unique<LSMTree>(databaseDirectory, bufferPool.get());
         if (!lsmTree) {
             std::cout << "Failed to initialize LSMTree" << std::endl;
             databaseName.clear();

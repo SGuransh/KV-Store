@@ -1,5 +1,6 @@
 #include "BufferPool.hpp"
 #include <stdexcept>
+#include <iostream>
 
 BufferPool::BufferPool(std::size_t bufferSize, std::unique_ptr<EvictionPolicy> policy)
     : bufferSize(bufferSize), currentSize(0) {
@@ -58,6 +59,9 @@ Page* BufferPool::getPage(const PageID& id) {
     if (page != nullptr) {
         // Page found - record access in eviction policy
         evictionPolicy->recordAccess(id);
+        std::cout << "[BufferPool] Cache HIT: " << id.toString() << std::endl;
+    } else {
+        std::cout << "[BufferPool] Cache MISS: " << id.toString() << std::endl;
     }
     
     return page;

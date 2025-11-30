@@ -106,6 +106,12 @@ public:
     void setBufferPool(BufferPool* pool) { bufferPool = pool; }
     
     /**
+     * Get the BufferPool pointer
+     * @return Pointer to BufferPool (may be nullptr)
+     */
+    BufferPool* getBufferPool() const { return bufferPool; }
+    
+    /**
      * Build B-Tree from sorted key-value pairs and write to disk
      * @param sortedData Vector of sorted key-value pairs
      * @param fileName The SST file to create

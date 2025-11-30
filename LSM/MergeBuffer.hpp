@@ -8,6 +8,9 @@
 #include <string>
 #include <utility>
 
+// Forward declaration
+class BufferPool;
+
 /**
  * MergeBuffer - A fixed-size buffer for streaming merge operations during compaction
  * 
@@ -29,13 +32,15 @@ public:
 
 private:
     size_t currentPos;    // Current read position (for input buffers)
+    BufferPool* bufferPool;  // Pointer to shared buffer pool (not owned)
 
 public:
     /**
      * Constructor - allocate buffer with configurable size
      * @param bufferSize Number of key-value pairs to buffer (default 1024)
+     * @param pool Pointer to BufferPool for cached I/O (optional)
      */
-    explicit MergeBuffer(size_t bufferSize = DEFAULT_BUFFER_SIZE);
+    explicit MergeBuffer(size_t bufferSize = DEFAULT_BUFFER_SIZE, BufferPool* pool = nullptr);
     
     /**
      * Destructor - deallocate buffer
